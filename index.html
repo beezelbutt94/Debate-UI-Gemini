@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Gemini Suite</title>
+    <link rel="stylesheet" href="index.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.sh/@google/genai@^0.15.0",
+          "marked": "https://esm.sh/marked@^15.0.7"
+        }
+      }
+    </script>
+    <script type="module" src="index.tsx"></script>
+  </head>
+  <body>
+    <div class="app-container">
+      <header>
+        <h1 data-lang-key="appTitle">Gemini Suite</h1>
+        <div class="header-controls">
+          <div class="language-selector-container">
+            <label for="ui-language-selector" data-lang-key="interfaceLanguage">Interface:</label>
+            <select id="ui-language-selector">
+              <option value="en">English</option>
+              <option value="bg">Български</option>
+            </select>
+          </div>
+          <nav class="tabs">
+              <button class="tab-button active" data-tab="debate" data-lang-key="tabAIDebate">AI Debate</button>
+              <button class="tab-button" data-tab="chat" data-lang-key="tabDirectChat">Direct Chat</button>
+              <button class="tab-button" data-tab="live" data-lang-key="tabLiveChat">Live Chat</button>
+          </nav>
+        </div>
+      </header>
+
+      <main class="content">
+        <!-- AI Debate Tab -->
+        <div class="tab-content active" id="debate-container">
+          <div class="debate-setup-container" id="debate-setup-container">
+            <h2 id="debate-setup-step-1" data-lang-key="step1SelectChars">1. Select Two Characters</h2>
+            <div id="character-search-controls" class="character-search-controls">
+              <input type="search" id="character-search-input" data-lang-key-placeholder="searchCharsPlaceholder" placeholder="Search characters by name, role, bio...">
+              <button id="randomize-characters-button" data-lang-key="randomizeButton">🎲 Randomize</button>
+            </div>
+            <div id="character-selection-grid" class="character-selection-grid">
+              <!-- Character cards will be populated by JS -->
+            </div>
+            <div class="debate-controls">
+              <div id="debate-lock-controls">
+                  <h2 id="debate-setup-step-2" data-lang-key="step2LockChoices">2. Lock Your Choices</h2>
+                  <button id="lock-characters-button" data-lang-key="lockCharactersButton" disabled>Lock Characters</button>
+              </div>
+            </div>
+          </div>
+          <div id="debate-main-area" class="debate-main-area">
+            <div id="debate-management-controls" hidden>
+                <div id="debate-topic-controls">
+                    <h2 id="debate-setup-step-3" data-lang-key="step3SetConditions">3. Set Conditions & Topic</h2>
+                     <div class="debate-settings-row">
+                        <div class="setting-item">
+                            <label for="debate-mode-selector" data-lang-key="modeLabel">Mode:</label>
+                            <select id="debate-mode-selector">
+                                <option value="debate" selected>Debate</option>
+                                <option value="conversation">Conversation</option>
+                                <option value="interview">Interview</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label for="answer-length-selector" data-lang-key="lengthLabel">Length:</label>
+                            <select id="answer-length-selector">
+                                <option value="short">Short</option>
+                                <option value="average" selected>Average</option>
+                                <option value="long">Long</option>
+                            </select>
+                        </div>
+                         <div class="setting-item">
+                            <label for="debate-language-selector" data-lang-key="languageLabel">Language:</label>
+                            <select id="debate-language-selector">
+                                <option value="english" selected>English</option>
+                                <option value="bulgarian">Български</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="text" id="debate-topic-input" data-lang-key-placeholder="topicPlaceholder" placeholder="e.g., The ethics of artificial intelligence">
+                    <button id="toggle-debate-button" data-lang-key="startDebate">Start Debate</button>
+                </div>
+                <div class="debate-utility-buttons">
+                    <button id="toggle-setup-button" data-lang-key="hideSetup">Hide Setup</button>
+                    <button id="change-characters-button" data-lang-key="changeCharacters">Change Characters</button>
+                    <button id="stop-voices-button" data-lang-key="stopVoices" hidden>Stop Voices</button>
+                </div>
+            </div>
+             <div id="debate-participants-container" class="debate-participants-container" hidden>
+                <!-- JS will populate this with character names and turn info -->
+             </div>
+             <div id="debate-chat-container" class="chat-container"></div>
+          </div>
+        </div>
+
+        <!-- Direct Chat Tab -->
+        <div class="tab-content" id="chat-container-wrapper">
+          <div class="chat-header">
+              <div class="model-selector-container">
+                  <label for="direct-chat-personality-selector" data-lang-key="aiPersonalityLabel">AI Personality:</label>
+                  <select id="direct-chat-personality-selector"></select>
+              </div>
+              <div class="model-selector-container">
+                  <label for="model-selector" data-lang-key="chatModelLabel">Chat Model:</label>
+                  <select id="model-selector">
+                      <option value="gemini-2.5-flash">Flash (Fast)</option>
+                      <option value="gemini-2.5-pro">Pro (Advanced)</option>
+                  </select>
+              </div>
+              <div class="model-selector-container">
+                  <label for="tts-voice-selector" data-lang-key="ttsVoiceLabel">TTS Voice:</label>
+                  <select id="tts-voice-selector">
+                      <!-- Voices populated by JS -->
+                  </select>
+              </div>
+          </div>
+          <div class="chat-container" id="direct-chat-container" aria-live="polite">
+              <div class="welcome-message">
+                  <h2 data-lang-key="welcomeDirectChat">Welcome to Direct Chat!</h2>
+                  <p data-lang-key="welcomeDirectChatDesc">Start a conversation, attach a file, or use the audio recorder to talk to Gemini.</p>
+                  <div class="suggestion-chips">
+                      <button class="chip" data-lang-key="chipFunFact">"Tell me a fun fact"</button>
+                      <button class="chip" data-lang-key="chipQuantum">"What is quantum computing?"</button>
+                      <button class="chip" data-lang-key="chipPoem">"Write a poem about the ocean"</button>
+                  </div>
+              </div>
+          </div>
+          <div class="chat-form-container">
+            <form class="chat-form">
+              <div class="attachment-preview" id="attachment-preview-container" hidden>
+                  <span id="attachment-icon"></span>
+                  <span id="attachment-filename"></span>
+                  <button type="button" id="remove-attachment" aria-label="Remove attachment">&times;</button>
+              </div>
+              <div class="input-row">
+                  <div class="tool-menu-container">
+                      <button type="button" id="tool-menu-button" aria-label="Open tools menu">&#x2795;</button>
+                      <div id="tool-menu" class="tool-menu" hidden>
+                          <button type="button" id="upload-file-button"><span class="icon">📁</span> <span data-lang-key="uploadFile">Upload File</span></button>
+                          <button type="button" id="toggle-search-button"><span class="icon">🌐</span> <span data-lang-key="searchWeb">Search Web: OFF</span></button>
+                      </div>
+                  </div>
+                  <input type="file" id="file-input" hidden>
+                  <textarea data-lang-key-placeholder="chatPlaceholder" placeholder="Enter your message..." required></textarea>
+                  <button type="button" id="record-button" data-lang-key-aria-label="recordAudioAria" aria-label="Record audio">&#x1F3A4;</button>
+                  <button type="submit" data-lang-key-aria-label="sendMessageAria" aria-label="Send message" data-lang-key="sendButton">Send</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Live Chat Tab -->
+        <div class="tab-content" id="live-container">
+            <div class="live-intro">
+                <h2 data-lang-key="liveChatTitle">Live Conversation</h2>
+                <p data-lang-key="liveChatDesc">Speak directly with Gemini and get real-time audio responses. This feature uses the Gemini 2.5 Flash Native Audio model.</p>
+            </div>
+            <div class="live-controls">
+                <button id="live-connect-button" class="start-button" data-lang-key="startConversation">Start Conversation</button>
+                <div class="model-selector-container">
+                    <label for="live-chat-personality-selector" data-lang-key="aiPersonalityLabel">AI Personality:</label>
+                    <select id="live-chat-personality-selector"></select>
+                </div>
+                <div id="live-status-container">
+                    <div id="live-status-indicator" class="disconnected">
+                        <span id="live-status-text" data-lang-key="statusDisconnected">DISCONNECTED</span>
+                    </div>
+                </div>
+            </div>
+            <div class="live-transcription-container">
+                <div id="live-transcription-history" class="chat-container">
+                     <div class="welcome-message">
+                        <p data-lang-key="liveWelcome">Your conversation transcription will appear here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+      </main>
+    </div>
+    <div id="toast-container"></div>
+  </body>
+</html>
