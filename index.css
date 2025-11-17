@@ -1,33 +1,34 @@
+
 :root {
-  --background-light: #f7f9fc;
-  --background-dark: #121212;
+  --background-light: #f4f6f8;
+  --background-dark: #191c21;
   --text-light: #202124;
   --text-dark: #e8eaed;
   
   --surface-light: #ffffff;
-  --surface-dark: #1e1e1e;
+  --surface-dark: #23272e;
   
-  --border-light: #e0e0e0;
-  --border-dark: #3c4043;
+  --border-light: #dfe3e8;
+  --border-dark: #3a4149;
   
-  --user-message-light: #e3f2fd;
-  --user-message-dark: #0d47a1;
+  --user-message-light: #d8e6f8;
+  --user-message-dark: #2d5a99;
 
-  --model-message-light: #f1f3f4;
-  --model-message-dark: #303134;
+  --model-message-light: #eef0f2;
+  --model-message-dark: #333842;
 
-  --accent-color: #1a73e8;
-  --accent-color-light: #d6eaff;
+  --accent-color: #4A90E2;
+  --accent-color-light: #d8e6f8;
   
-  --summary-bg-light: #fffbe6;
+  --summary-bg-light: #fef9e7;
   --summary-bg-dark: #4d4318;
   
-  --stop-color: #d93025;
-  --live-color: #1e8e3e;
-  --warn-color: #ffc107;
+  --stop-color: #e74c3c;
+  --live-color: #2ecc71;
+  --warn-color: #f1c40f;
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 1px 0 rgba(0,0,0,0.02);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
 
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 
@@ -51,6 +52,7 @@ body {
   font-family: var(--font-family);
   color: var(--text-color);
   background-color: var(--background);
+  background-image: linear-gradient(180deg, var(--background) 0%, light-dark(hsl(210, 20%, 98%), hsl(220, 14%, 10%)) 100%);
   display: flex;
   flex-direction: column;
 }
@@ -77,6 +79,12 @@ header {
   flex-wrap: wrap;
   box-shadow: var(--shadow-sm);
   z-index: 10;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 header h1 {
@@ -106,6 +114,13 @@ header h1 {
   color: var(--text-color);
 }
 
+/* --- Icons --- */
+.icon {
+    width: 1.2em;
+    height: 1.2em;
+    stroke-width: 2;
+}
+
 /* --- Tabs --- */
 .tabs {
   display: flex;
@@ -125,6 +140,9 @@ header h1 {
   transition: all 0.2s ease-in-out;
   border-radius: 6px 6px 0 0;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .tab-button:hover {
@@ -133,6 +151,7 @@ header h1 {
 
 .tab-button.active {
   border-bottom-color: var(--accent-color);
+  background-color: var(--model-message-bg);
   font-weight: 600;
   color: var(--accent-color);
 }
@@ -148,7 +167,6 @@ header h1 {
 .tab-content {
   display: none;
   flex-direction: column;
-  gap: 1.5rem;
   min-height: 0;
   flex-grow: 1;
 }
@@ -212,23 +230,8 @@ header h1 {
 
 
 #randomize-characters-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
   background-color: #6c757d;
-  color: white;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
   white-space: nowrap;
-}
-#randomize-characters-button:hover:not(:disabled) {
-  opacity: 0.85;
-}
-#randomize-characters-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .character-selection-grid {
@@ -257,6 +260,9 @@ header h1 {
     opacity: 0.4;
     pointer-events: none;
 }
+.character-selection-grid.locked .voice-preview-button {
+  display: none;
+}
 
 
 .character-card {
@@ -265,7 +271,7 @@ header h1 {
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   position: relative;
   background-color: transparent;
-  min-height: 150px;
+  min-height: 200px;
 }
 .character-card-inner {
   position: relative;
@@ -286,13 +292,15 @@ header h1 {
   backface-visibility: hidden;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 1.25rem 1rem 1rem 1rem;
   border-radius: 8px;
   border: 2px solid var(--border-color);
   box-sizing: border-box;
 }
 .character-card-front {
   background-color: var(--surface-color);
+  align-items: center;
+  text-align: center;
 }
 .character-card-back {
   background-color: var(--surface-color);
@@ -311,6 +319,19 @@ header h1 {
   box-shadow: 0 0 0 3px var(--accent-color-light);
 }
 
+.card-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.8rem;
+  color: white;
+  margin-bottom: 0.75rem;
+}
+
 .character-card h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1.1rem;
@@ -319,6 +340,36 @@ header h1 {
   margin: 0;
   font-size: 0.85rem;
   color: #6c757d;
+  flex-grow: 1;
+}
+
+.voice-preview-button {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: light-dark(rgba(0,0,0,0.08), rgba(255,255,255,0.1));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+  transition: all 0.2s;
+}
+.voice-preview-button:hover {
+  background-color: light-dark(rgba(0,0,0,0.15), rgba(255,255,255,0.2));
+}
+.voice-preview-button .icon {
+  width: 18px;
+  height: 18px;
+}
+.voice-preview-button .spinner {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
 }
 
 .debate-controls {
@@ -340,6 +391,10 @@ header h1 {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 .debate-controls button:hover, #debate-management-controls button:hover {
   opacity: 0.85;
@@ -361,8 +416,12 @@ header h1 {
   gap: 1rem;
   flex-wrap: wrap;
 }
-#change-characters-button, #toggle-setup-button {
+#change-characters-button, #toggle-setup-button, #randomize-characters-button {
     background-color: #6c757d;
+}
+#stop-voices-button {
+    background-color: var(--warn-color);
+    color: black;
 }
 #toggle-debate-button.stop-button {
     background-color: var(--stop-color);
@@ -442,9 +501,8 @@ header h1 {
 }
 .participant-display {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1rem;
     padding: 0.5rem;
     border-radius: 8px;
     border: 2px solid transparent;
@@ -468,31 +526,88 @@ header h1 {
   font-size: 1.2rem;
   color: white;
   transition: transform 0.3s ease;
+  flex-shrink: 0;
 }
 .participant-display.is-speaking .avatar {
     animation: speaking-pulse 1.5s infinite ease-in-out;
 }
 
+.participant-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.participant-display .name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    text-align: left;
+}
+
+.typing-indicator {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    height: 16px; /* Reserve space */
+}
+.participant-display.is-thinking .typing-indicator {
+    display: flex;
+}
+.typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-color);
+    opacity: 0.7;
+    border-radius: 50%;
+    animation: typing-pulse 1.2s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 1;
+    }
+}
+
+
 .hold-turn-button {
   position: absolute;
-  top: 0px;
-  right: -5px;
-  background: rgba(0,0,0,0.3);
+  top: -8px;
+  right: -8px;
+  background: rgba(0,0,0,0.4);
   color: white;
   border: none;
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  font-size: 1rem;
   display: none; 
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
   z-index: 5;
+  padding: 0;
 }
+.hold-turn-button .icon {
+    width: 18px;
+    height: 18px;
+}
+.hold-turn-button span {
+    display: none;
+}
+
 .hold-turn-button:hover:not(:disabled) {
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
   transform: scale(1.1);
 }
 .hold-turn-button:disabled {
@@ -509,11 +624,6 @@ header h1 {
   100% { transform: scale(1); }
 }
 
-.participant-display .name {
-    font-weight: bold;
-    font-size: 1.1rem;
-    text-align: center;
-}
 .debate-info {
     font-size: 1rem;
     text-align: center;
@@ -783,6 +893,10 @@ header h1 {
   transition: background-color 0.2s;
   height: 44px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 .chat-form button[type="submit"] {
     padding: 10px 20px;
@@ -793,14 +907,14 @@ header h1 {
 .chat-form button#record-button, #tool-menu-button {
     background-color: transparent;
     color: var(--text-color);
-    font-size: 1.5rem;
     padding: 0;
     width: 44px;
     height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border-radius: 50%;
+}
+.chat-form button#record-button .icon, #tool-menu-button .icon {
+    width: 24px;
+    height: 24px;
 }
 .chat-form button#record-button:hover, #tool-menu-button:hover {
   background-color: var(--model-message-bg);
@@ -840,7 +954,8 @@ header h1 {
     font-size: 0.9rem;
 }
 .tool-menu button .icon {
-  font-size: 1.2rem;
+  width: 1.2rem;
+  height: 1.2rem;
 }
 .tool-menu button:hover {
     background: var(--model-message-bg);
@@ -877,6 +992,9 @@ header h1 {
     color: white;
     cursor: pointer;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 #live-connect-button.start-button {
     background-color: var(--accent-color);

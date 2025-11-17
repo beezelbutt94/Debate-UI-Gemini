@@ -28,37 +28,37 @@ type Blob = {
 // --- Character Definitions ---
 // Non-translatable data for each character
 const characterBlueprints = [
-  { id: 'Precious Peshes', voice: 'Puck' },
-  { id: 'Frank Miller', voice: 'Charon' },
-  { id: 'Wazashi Sashi', voice: 'Fenrir' },
-  { id: 'Reni the Pooch', voice: 'Zephyr' },
-  { id: 'Dr. Sharma', voice: 'Kore' },
-  { id: 'Marcus Thorne', voice: 'Charon' },
-  { id: 'Leo Valdez', voice: 'Fenrir' },
-  { id: 'Isabelle Chen', voice: 'Zephyr' },
-  { id: 'Jamal Williams', voice: 'Fenrir' },
-  { id: 'Sofia Rossi', voice: 'Kore' },
-  { id: 'Dr. Tanaka', voice: 'Charon' },
-  { id: 'David Chen', voice: 'Puck' },
-  { id: 'Maria Flores', voice: 'Zephyr' },
-  { id: 'Ben Carter', voice: 'Fenrir' },
-  { id: 'Dr. Reed', voice: 'Charon' },
-  { id: 'Grace O’Malley', voice: 'Zephyr' },
-  { id: 'Samir Khan', voice: 'Puck' },
-  { id: 'Olivia Monroe', voice: 'Kore' },
-  { id: 'Jax', voice: 'Puck' },
-  { id: 'Dr. Aris Thorne', voice: 'Charon' },
-  { id: 'Fiona Campbell', voice: 'Kore' },
-  { id: 'Rico Diaz', voice: 'Fenrir' },
-  { id: 'Chloe Nguyen', voice: 'Zephyr' },
-  { id: 'Elias Vance', voice: 'Charon' },
-  { id: 'Nora Finch', voice: 'Zephyr' },
-  { id: 'Silas "Sly" Croft', voice: 'Puck' },
-  { id: 'Dr. Lena Petrova', voice: 'Kore' },
-  { id: 'Commander Eva Rostova', voice: 'Charon' },
-  { id: '"Pixel" Pete', voice: 'Fenrir' },
-  { id: 'Amara Singh', voice: 'Kore' },
-  { id: 'Julien Dubois', voice: 'Puck' },
+  { id: 'Precious Peshes', voice: 'Puck', sex: 'Male', type: 'Manipulator' },
+  { id: 'Frank Miller', voice: 'Charon', sex: 'Male', type: 'Pragmatist' },
+  { id: 'Wazashi Sashi', voice: 'Fenrir', sex: 'Male', type: 'Observer' },
+  { id: 'Reni the Pooch', voice: 'Zephyr', sex: 'Female', type: 'Innocent' },
+  { id: 'Dr. Sharma', voice: 'Kore', sex: 'Female', type: 'Analyst' },
+  { id: 'Marcus Thorne', voice: 'Charon', sex: 'Male', type: 'Legalist' },
+  { id: 'Leo Valdez', voice: 'Fenrir', sex: 'Male', type: 'Visionary' },
+  { id: 'Isabelle Chen', voice: 'Zephyr', sex: 'Female', type: 'Skeptic' },
+  { id: 'Jamal Williams', voice: 'Fenrir', sex: 'Male', type: 'Idealist' },
+  { id: 'Sofia Rossi', voice: 'Kore', sex: 'Female', type: 'Creator' },
+  { id: 'Dr. Tanaka', voice: 'Charon', sex: 'Male', type: 'Scientist' },
+  { id: 'David Chen', voice: 'Puck', sex: 'Male', type: 'Realist' },
+  { id: 'Maria Flores', voice: 'Zephyr', sex: 'Female', type: 'Pragmatist' },
+  { id: 'Ben Carter', voice: 'Fenrir', sex: 'Male', type: 'Theorist' },
+  { id: 'Dr. Reed', voice: 'Kore', sex: 'Female', type: 'Philosopher' },
+  { id: 'Grace O’Malley', voice: 'Zephyr', sex: 'Female', type: 'Advocate' },
+  { id: 'Samir Khan', voice: 'Puck', sex: 'Male', type: 'Logician' },
+  { id: 'Olivia Monroe', voice: 'Kore', sex: 'Female', type: 'Strategist' },
+  { id: 'Jax', voice: 'Puck', sex: 'Non-binary', type: 'Survivor' },
+  { id: 'Dr. Aris Thorne', voice: 'Charon', sex: 'Male', type: 'Analyst' },
+  { id: 'Fiona Campbell', voice: 'Kore', sex: 'Female', type: 'Guardian' },
+  { id: 'Rico Diaz', voice: 'Fenrir', sex: 'Male', type: 'Investigator' },
+  { id: 'Chloe Nguyen', voice: 'Zephyr', sex: 'Female', type: 'Marketer' },
+  { id: 'Elias Vance', voice: 'Charon', sex: 'Male', type: 'Historian' },
+  { id: 'Nora Finch', voice: 'Zephyr', sex: 'Female', type: 'Futurist' },
+  { id: 'Silas "Sly" Croft', voice: 'Puck', sex: 'Male', type: 'Strategist' },
+  { id: 'Dr. Lena Petrova', voice: 'Kore', sex: 'Female', type: 'Ethicist' },
+  { id: 'Commander Eva Rostova', voice: 'Kore', sex: 'Female', type: 'Explorer' },
+  { id: '"Pixel" Pete', voice: 'Fenrir', sex: 'Male', type: 'Gamer' },
+  { id: 'Amara Singh', voice: 'Kore', sex: 'Female', type: 'Healer' },
+  { id: 'Julien Dubois', voice: 'Puck', sex: 'Male', type: 'Artist' },
 ];
 
 const characterTranslations = {
@@ -143,12 +143,15 @@ const translations = {
     tabLiveChat: 'Live Chat',
     step1SelectChars: '1. Select Two Characters',
     searchCharsPlaceholder: 'Search characters by name, role, bio...',
-    randomizeButton: '🎲 Randomize',
+    randomizeButton: 'Randomize',
     step2LockChoices: '2. Lock Your Choices',
     lockCharactersButton: 'Lock Characters',
     unlockCharactersButton: 'Unlock Characters',
     step3SetConditions: '3. Set Conditions & Topic',
     modeLabel: 'Mode:',
+    modeFormalDebate: 'Formal Debate',
+    modeCasualDiscussion: 'Casual Discussion',
+    modePanelInterview: 'Panel Interview',
     lengthLabel: 'Length:',
     languageLabel: 'Language:',
     topicPlaceholder: 'e.g., The ethics of artificial intelligence',
@@ -188,6 +191,7 @@ const translations = {
     generatingSummary: 'Generating summary...',
     holdTurn: 'Hold',
     resumeTurn: 'Resume',
+    selectTwoCharactersError: 'You can only select two characters for a debate.',
   },
   bg: {
     appTitle: 'Gemini Комплект',
@@ -197,12 +201,15 @@ const translations = {
     tabLiveChat: 'Чат на Живо',
     step1SelectChars: '1. Изберете двама герои',
     searchCharsPlaceholder: 'Търсене по име, роля, биография...',
-    randomizeButton: '🎲 Случайни',
+    randomizeButton: 'Случайни',
     step2LockChoices: '2. Заключете избора си',
     lockCharactersButton: 'Заключи героите',
     unlockCharactersButton: 'Отключи героите',
     step3SetConditions: '3. Задайте условия и тема',
     modeLabel: 'Режим:',
+    modeFormalDebate: 'Официален дебат',
+    modeCasualDiscussion: 'Непринуден разговор',
+    modePanelInterview: 'Панелно интервю',
     lengthLabel: 'Дължина:',
     languageLabel: 'Език:',
     topicPlaceholder: 'напр., Етиката на изкуствения интелект',
@@ -242,6 +249,7 @@ const translations = {
     generatingSummary: 'Генериране на обобщение...',
     holdTurn: 'Пауза',
     resumeTurn: 'Продължи',
+    selectTwoCharactersError: 'Можете да изберете само двама герои за дебат.',
   }
 };
 
@@ -264,6 +272,8 @@ const state = {
   ttsGenerationId: 0,
   currentSpokenMessage: null as { utterance: SpeechSynthesisUtterance, messageId: string } | null,
   activeAudioSources: new Set<AudioBufferSourceNode>(),
+  previewAudioSource: null as AudioBufferSourceNode | null,
+  activePreviewButton: null as HTMLElement | null,
   nextAudioStartTime: 0,
   inputAudioContext: null as AudioContext | null,
   outputAudioContext: null as AudioContext | null,
@@ -317,12 +327,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initializeDOMElements() {
   uiLanguageSelector = document.getElementById('ui-language-selector') as HTMLSelectElement;
-  tabButtons = document.querySelectorAll('.tab-button');
-  tabContents = document.querySelectorAll('.tab-content');
+  // FIX: Use type assertions for querySelectorAll to correctly type NodeLists.
+  // This resolves the error on line 548 where `.dataset` was accessed on a generic `Element`.
+  tabButtons = document.querySelectorAll('.tab-button') as NodeListOf<HTMLButtonElement>;
+  tabContents = document.querySelectorAll('.tab-content') as NodeListOf<HTMLElement>;
   characterGrid = document.getElementById('character-selection-grid');
   lockCharactersButton = document.getElementById('lock-characters-button') as HTMLButtonElement;
   directChatContainer = document.getElementById('direct-chat-container');
-  directChatForm = document.querySelector('.chat-form');
+  // FIX: Use a type assertion to ensure directChatForm is correctly typed as HTMLFormElement.
+  directChatForm = document.querySelector('.chat-form') as HTMLFormElement;
   liveConnectButton = document.getElementById('live-connect-button') as HTMLButtonElement;
   liveStatusIndicator = document.getElementById('live-status-indicator');
   liveStatusText = document.getElementById('live-status-text');
@@ -350,6 +363,8 @@ function initializeEventListeners() {
   });
 
   // AI Debate Listeners
+  characterGrid.addEventListener('click', handleCharacterGridClick);
+  characterGrid.addEventListener('mousedown', handleCharacterGridMouseDown);
   lockCharactersButton.addEventListener('click', handleLockCharactersClick);
   document.getElementById('randomize-characters-button').addEventListener('click', randomizeCharacters);
   document.getElementById('character-search-input').addEventListener('input', (e) => {
@@ -436,15 +451,45 @@ function generateCharacters() {
   const lang = state.currentLanguage;
   state.characters = characterBlueprints.map(bp => {
     const translated = characterTranslations[lang]?.characters?.[bp.id] || characterTranslations['en'].characters[bp.id];
+    
+    // Construct a more detailed persona to ground the AI in its character.
+    const persona = `You are playing the role of a character named ${translated.name}.
+
+Your Background (This is your memory):
+${translated.biography}
+
+Your Public Persona (How others see you):
+${translated.description}
+
+Your Core Identity (Your internal thoughts and style):
+${translated.personaCore}
+
+RULES:
+- You MUST stay in character as ${translated.name} at all times.
+- Your knowledge and responses are strictly limited to what your character would know and how they would express it, based on the detailed background and core identity provided.
+- You must draw upon your biography as if they are your real-life experiences.
+- NEVER mention that you are an AI, a language model, or that you are role-playing. You ARE ${translated.name}.
+`.trim();
+
     return {
       id: bp.id,
       name: translated.name,
       description: translated.description,
       biography: translated.biography,
       voice: bp.voice,
-      persona: `Your name is ${translated.name}. ${translated.personaCore}`,
+      persona: persona,
     };
   });
+}
+
+
+function getAvatarColor(id: string): string {
+  const colors = ['#4285F4', '#DB4437', '#F4B400', '#0F9D58', '#AB47BC', '#00ACC1', '#FF7043', '#7E57C2'];
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
 }
 
 function populateCharacterGrid(filter = '') {
@@ -462,31 +507,26 @@ function populateCharacterGrid(filter = '') {
     if (state.selectedCharacterIds.includes(character.id)) {
       card.classList.add('selected');
     }
+
+    const escapedId = character.id.replace(/"/g, '&quot;');
+
     card.innerHTML = `
       <div class="character-card-inner">
         <div class="character-card-front">
+          <div class="card-avatar" style="background-color: ${getAvatarColor(character.id)}">${character.name.charAt(0)}</div>
           <h3>${character.name}</h3>
           <p>${character.description}</p>
+          <button class="voice-preview-button" data-character-id="${escapedId}" aria-label="Preview voice for ${character.name}">
+              <svg class="icon play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+              <svg class="icon stop-icon" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              <div class="spinner" style="display: none;"></div>
+          </button>
         </div>
         <div class="character-card-back">
           <p>${character.biography}</p>
         </div>
       </div>
     `;
-    card.addEventListener('click', () => {
-      if (!state.charactersLocked) {
-        card.classList.toggle('expanded');
-        document.querySelectorAll('.character-card.expanded').forEach(c => {
-          if (c !== card) c.classList.remove('expanded');
-        });
-      }
-    });
-    card.addEventListener('mousedown', (e) => {
-        if (!state.charactersLocked) {
-            e.preventDefault();
-            handleCharacterClick(character.id);
-        }
-    });
     characterGrid.appendChild(card);
   });
 }
@@ -507,22 +547,57 @@ function populatePersonalitySelectors() {
     });
 }
 
+function handleCharacterGridClick(e: MouseEvent) {
+    if (state.charactersLocked) return;
+
+    const target = e.target as HTMLElement;
+    const card = target.closest('.character-card');
+    if (!card) return;
+
+    const previewButton = target.closest('.voice-preview-button');
+    if (previewButton) {
+        e.stopPropagation(); // Prevent card flip
+        handleVoicePreviewClick(previewButton as HTMLButtonElement);
+        return;
+    }
+    
+    // Handle card flip
+    card.classList.toggle('expanded');
+    document.querySelectorAll('.character-card.expanded').forEach(c => {
+      if (c !== card) c.classList.remove('expanded');
+    });
+}
+
+function handleCharacterGridMouseDown(e: MouseEvent) {
+    if (state.charactersLocked) return;
+    // FIX: The `closest()` method returns a generic `Element` type, which lacks the `dataset` property.
+    // Specifying `HTMLElement` as the generic type ensures type safety when accessing `dataset`.
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.character-card');
+    if (card && !(e.target as HTMLElement).closest('.voice-preview-button')) {
+        e.preventDefault(); // Prevent text selection on drag
+        handleCharacterClick(card.dataset.id);
+    }
+}
+
 function handleCharacterClick(id: string) {
-  // Escape double quotes for use in the CSS attribute selector.
-  // The original string might be e.g., 'Silas "Sly" Croft'.
-  // The selector needs to be '.character-card[data-id="Silas \"Sly\" Croft"]'.
-  // So we replace " with \\" to create the correctly escaped string literal.
   const escapedId = id.replace(/"/g, '\\"');
   const card = document.querySelector(`.character-card[data-id="${escapedId}"]`);
   if (!card) return;
 
   const index = state.selectedCharacterIds.indexOf(id);
   if (index > -1) {
+    // Deselect character
     state.selectedCharacterIds.splice(index, 1);
     card.classList.remove('selected');
-  } else if (state.selectedCharacterIds.length < 2) {
-    state.selectedCharacterIds.push(id);
-    card.classList.add('selected');
+  } else {
+    // Select character
+    if (state.selectedCharacterIds.length < 2) {
+      state.selectedCharacterIds.push(id);
+      card.classList.add('selected');
+    } else {
+      // Show error message because already 2 are selected
+      showToast(getTranslation('selectTwoCharactersError'), 'error');
+    }
   }
   lockCharactersButton.disabled = state.selectedCharacterIds.length !== 2;
 }
@@ -530,6 +605,7 @@ function handleCharacterClick(id: string) {
 function handleLockCharactersClick() {
   if (!state.charactersLocked && state.selectedCharacterIds.length !== 2) return;
   
+  stopPreviewAudio();
   state.charactersLocked = !state.charactersLocked;
 
   const isLocked = state.charactersLocked;
@@ -542,11 +618,11 @@ function handleLockCharactersClick() {
   randomizeButton.disabled = isLocked;
 
   if (isLocked) {
-    lockCharactersButton.textContent = getTranslation('unlockCharactersButton');
+    lockCharactersButton.querySelector('span').textContent = getTranslation('unlockCharactersButton');
     debateManagementControls.hidden = false;
     debateManagementControls.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    lockCharactersButton.textContent = getTranslation('lockCharactersButton');
+    lockCharactersButton.querySelector('span').textContent = getTranslation('lockCharactersButton');
     debateManagementControls.hidden = true;
   }
 }
@@ -564,7 +640,7 @@ function unlockCharacters() {
     (document.getElementById('randomize-characters-button') as HTMLButtonElement).disabled = false;
     document.getElementById('debate-management-controls').hidden = true;
     lockCharactersButton.disabled = true;
-    lockCharactersButton.textContent = getTranslation('lockCharactersButton');
+    lockCharactersButton.querySelector('span').textContent = getTranslation('lockCharactersButton');
     
     // Scroll back to the top
     document.getElementById('debate-setup-step-1').scrollIntoView({ behavior: 'smooth', block: 'start'});
@@ -597,7 +673,11 @@ function toggleSetupVisibility() {
     const setupContainer = document.getElementById('debate-setup-container');
     const button = document.getElementById('toggle-setup-button');
     const isCollapsed = setupContainer.classList.toggle('collapsed');
-    button.textContent = getTranslation(isCollapsed ? 'showSetup' : 'hideSetup');
+    button.querySelector('span').textContent = getTranslation(isCollapsed ? 'showSetup' : 'hideSetup');
+    const icon = button.querySelector('svg');
+    if (icon) {
+      icon.innerHTML = isCollapsed ? '<path d="m6 9 6 6 6-6"/>' : '<path d="m18 15-6-6-6 6"/>';
+    }
 }
 
 async function startDebate() {
@@ -606,6 +686,7 @@ async function startDebate() {
     alert('Please enter a debate topic.');
     return;
   }
+  stopPreviewAudio();
   state.debateInProgress = true;
   state.debatePaused = false;
   state.debateHistory = [];
@@ -616,8 +697,10 @@ async function startDebate() {
   document.getElementById('stop-voices-button').hidden = false;
 
   const toggleDebateButton = document.getElementById('toggle-debate-button') as HTMLButtonElement;
-  toggleDebateButton.textContent = getTranslation('stopDebate');
+  toggleDebateButton.querySelector('span').textContent = getTranslation('stopDebate');
   toggleDebateButton.classList.add('stop-button');
+  toggleDebateButton.querySelector('svg').innerHTML = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>`;
+
   document.getElementById('debate-topic-input').setAttribute('disabled', 'true');
   (document.getElementById('change-characters-button') as HTMLButtonElement).disabled = true;
 
@@ -630,18 +713,27 @@ async function startDebate() {
   }
   
   const participantsContainer = document.getElementById('debate-participants-container');
+  const holdIconSVG = `<svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+  const typingIndicatorHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+
   participantsContainer.innerHTML = `
     <div class="participants-row">
       <div class="participant-display" id="participant-0">
         <div class="avatar" style="background-color: #4285F4;">${selectedCharacters[0].name.charAt(0)}</div>
-        <div class="name">${selectedCharacters[0].name}</div>
-        <button class="hold-turn-button" data-speaker-index="0" aria-label="Hold Turn">${getTranslation('holdTurn')}</button>
+        <div class="participant-details">
+            <div class="name">${selectedCharacters[0].name}</div>
+            ${typingIndicatorHTML}
+        </div>
+        <button class="hold-turn-button" data-speaker-index="0" aria-label="${getTranslation('holdTurn')}">${holdIconSVG}<span>${getTranslation('holdTurn')}</span></button>
       </div>
       <span>vs</span>
       <div class="participant-display" id="participant-1">
         <div class="avatar" style="background-color: #DB4437;">${selectedCharacters[1].name.charAt(0)}</div>
-        <div class="name">${selectedCharacters[1].name}</div>
-        <button class="hold-turn-button" data-speaker-index="1" aria-label="Hold Turn">${getTranslation('holdTurn')}</button>
+        <div class="participant-details">
+            <div class="name">${selectedCharacters[1].name}</div>
+            ${typingIndicatorHTML}
+        </div>
+        <button class="hold-turn-button" data-speaker-index="1" aria-label="${getTranslation('holdTurn')}">${holdIconSVG}<span>${getTranslation('holdTurn')}</span></button>
       </div>
     </div>
     <div class="debate-info">
@@ -658,7 +750,8 @@ async function startDebate() {
   const answerLength = (document.getElementById('answer-length-selector') as HTMLSelectElement).value;
   const debateLang = (document.getElementById('debate-language-selector') as HTMLSelectElement).value;
   
-  const baseSystemInstruction = `You are in a ${debateMode}. The topic is "${topic}". Your responses must be in ${debateLang} and of ${answerLength} length. Do not write from a narrator's perspective. Only output the dialogue for your character.`;
+  const article = ['a', 'e', 'i', 'o', 'u'].includes(debateMode.charAt(0)) ? 'an' : 'a';
+  const baseSystemInstruction = `You are in ${article} ${debateMode}. The topic is "${topic}". Your responses must be in ${debateLang} and of ${answerLength} length. Do not write from a narrator's perspective. Only output the dialogue for your character.`;
 
   selectedCharacters[0].chat = state.ai.chats.create({
     model: modelSelector.value,
@@ -684,12 +777,14 @@ async function stopDebate(withSummary: boolean) {
   stopAllAudio();
 
   const toggleDebateButton = document.getElementById('toggle-debate-button') as HTMLButtonElement;
-  toggleDebateButton.textContent = getTranslation('startDebate');
+  toggleDebateButton.querySelector('span').textContent = getTranslation('startDebate');
   toggleDebateButton.classList.remove('stop-button');
+  toggleDebateButton.querySelector('svg').innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+
   document.getElementById('debate-topic-input').removeAttribute('disabled');
   (document.getElementById('change-characters-button') as HTMLButtonElement).disabled = false;
   document.getElementById('stop-voices-button').hidden = true;
-  document.querySelectorAll('.participant-display').forEach(el => el.classList.remove('active-turn', 'is-speaking'));
+  document.querySelectorAll('.participant-display').forEach(el => el.classList.remove('active-turn', 'is-speaking', 'is-thinking'));
 
   if (withSummary && state.debateHistory.length > 1) {
     const summaryId = `summary-${Date.now()}`;
@@ -737,8 +832,11 @@ async function takeTurn() {
   const speaker = selectedCharacters[speakerIndex];
 
   // Update participant UI
-  document.getElementById(`participant-${speakerIndex}`)?.classList.add('active-turn');
-  document.getElementById(`participant-${listenerIndex}`)?.classList.remove('active-turn', 'is-speaking');
+  const speakerEl = document.getElementById(`participant-${speakerIndex}`);
+  const listenerEl = document.getElementById(`participant-${listenerIndex}`);
+  if(speakerEl) speakerEl.classList.add('active-turn', 'is-thinking');
+  if(listenerEl) listenerEl.classList.remove('active-turn', 'is-speaking', 'is-thinking');
+
 
   try {
     const lastMessage = state.debateHistory[state.debateHistory.length - 1];
@@ -780,17 +878,26 @@ async function takeTurn() {
   }
 }
 
-function handleHoldTurnClick() {
+function handleHoldTurnClick(event: MouseEvent) {
     state.debatePaused = !state.debatePaused;
     const buttons = document.querySelectorAll('.hold-turn-button');
     buttons.forEach(btn => {
-        btn.textContent = getTranslation(state.debatePaused ? 'resumeTurn' : 'holdTurn');
+        (btn as HTMLButtonElement).querySelector('span').textContent = getTranslation(state.debatePaused ? 'resumeTurn' : 'holdTurn');
+        const icon = (btn as HTMLButtonElement).querySelector('svg');
+        const newAriaLabel = getTranslation(state.debatePaused ? 'resumeTurn' : 'holdTurn');
+        btn.setAttribute('aria-label', newAriaLabel);
+
+        if (state.debatePaused) {
+            icon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`; // Play icon
+        } else {
+            icon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`; // Pause icon
+        }
     });
 
     if (state.debatePaused) {
         if (state.debateTimeoutId) clearTimeout(state.debateTimeoutId);
         stopAllAudio(); // Stop any currently playing audio
-        document.querySelectorAll('.participant-display').forEach(el => el.classList.remove('is-speaking'));
+        document.querySelectorAll('.participant-display').forEach(el => el.classList.remove('is-speaking', 'is-thinking'));
     } else {
         // Resume by taking the next turn immediately
         takeTurn();
@@ -802,6 +909,7 @@ function addMessageToDebateUI(character: Character | null, text: string, id: str
     const debateContainer = document.getElementById('debate-chat-container');
     const messageWrapper = document.createElement('div');
     messageWrapper.className = `message ${character ? 'model' : 'summary-message'}`;
+    const speakIconSVG = `<svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
 
     let contentHTML = `<div class="message-content" id="${id}">${marked.parse(text)}</div>`;
     if (text === '...' || text === getTranslation('generatingSummary')) {
@@ -812,7 +920,7 @@ function addMessageToDebateUI(character: Character | null, text: string, id: str
         <div class="sender-header">
             ${character ? `<div class="avatar" style="background-color: ${speakerIndex === 0 ? '#4285F4' : '#DB4437'};">${character.name.charAt(0)}</div>` : ''}
             <span class="sender-name">${character ? character.name : getTranslation('summaryMessageTitle')}</span>
-            ${character ? `<button class="speak-button" id="speak-${id}" aria-label="Speak message">🔊</button>` : ''}
+            ${character ? `<button class="speak-button" id="speak-${id}" aria-label="Speak message">${speakIconSVG}</button>` : ''}
         </div>
         ${contentHTML}
     `;
@@ -964,7 +1072,8 @@ function toggleLiveSession() {
 
 async function startLiveSession() {
   try {
-    liveConnectButton.textContent = getTranslation('stopConversation');
+    liveConnectButton.querySelector('span').textContent = getTranslation('stopConversation');
+    liveConnectButton.querySelector('svg').innerHTML = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>`;
     liveConnectButton.classList.remove('start-button');
     liveConnectButton.classList.add('stop-button');
     liveStatusIndicator.className = 'connecting';
@@ -1078,7 +1187,8 @@ function stopLiveSession() {
         state.outputAudioContext = null;
     }
 
-    liveConnectButton.textContent = getTranslation('startConversation');
+    liveConnectButton.querySelector('span').textContent = getTranslation('startConversation');
+    liveConnectButton.querySelector('svg').innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
     liveConnectButton.classList.remove('stop-button');
     liveConnectButton.classList.add('start-button');
     liveStatusIndicator.className = 'disconnected';
@@ -1126,13 +1236,117 @@ function populateTtsVoices() {
     });
 }
 
+async function handleVoicePreviewClick(button: HTMLButtonElement) {
+    const characterId = button.dataset.characterId;
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) return;
+
+    // If this button is already the active one, stop it.
+    if (state.activePreviewButton === button) {
+        stopPreviewAudio();
+        return;
+    }
+
+    // Stop any other preview that might be playing.
+    stopPreviewAudio(); 
+
+    state.activePreviewButton = button;
+    setPreviewButtonState('loading');
+
+    try {
+        const textToSpeak = `Hello. My name is ${character.name}. ${character.description}`;
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-preview-tts',
+            contents: [{ parts: [{ text: textToSpeak }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: character.voice } },
+                },
+            },
+        });
+
+        // Check if another preview was started while this was generating
+        if (state.activePreviewButton !== button) {
+            return; 
+        }
+
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+            const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+
+            state.previewAudioSource = source;
+
+            source.onended = () => {
+                // Only reset if this is still the active source
+                if (state.previewAudioSource === source) {
+                    stopPreviewAudio();
+                }
+                ctx.close();
+            };
+            
+            setPreviewButtonState('playing');
+            source.start();
+        } else {
+            throw new Error("No audio data received from TTS API.");
+        }
+
+    } catch (error) {
+        console.error("TTS Preview Error:", error);
+        showToast(getTranslation('ttsError'), 'error');
+        stopPreviewAudio(); // Reset UI on error
+    }
+}
+
+function setPreviewButtonState(buttonState: 'default' | 'loading' | 'playing') {
+    if (!state.activePreviewButton) return;
+    const playIcon = state.activePreviewButton.querySelector('.play-icon') as HTMLElement;
+    const stopIcon = state.activePreviewButton.querySelector('.stop-icon') as HTMLElement;
+    const spinner = state.activePreviewButton.querySelector('.spinner') as HTMLElement;
+
+    playIcon.style.display = 'none';
+    stopIcon.style.display = 'none';
+    spinner.style.display = 'none';
+
+    switch (buttonState) {
+        case 'loading':
+            spinner.style.display = 'block';
+            break;
+        case 'playing':
+            stopIcon.style.display = 'block';
+            break;
+        case 'default':
+        default:
+            playIcon.style.display = 'block';
+            break;
+    }
+}
+
+function stopPreviewAudio() {
+    if (state.previewAudioSource) {
+        try {
+            state.previewAudioSource.stop();
+        } catch (e) { /* ignore if already stopped */ }
+        state.previewAudioSource = null;
+    }
+    if (state.activePreviewButton) {
+        setPreviewButtonState('default');
+        state.activePreviewButton = null;
+    }
+}
+
 async function speak(text: string, voiceName: string, messageId: string, speakerIndex?: number): Promise<void> {
     return new Promise(async (resolve) => {
         stopAllAudio();
 
         const currentGenerationId = ++state.ttsGenerationId;
         const speakButton = document.getElementById(`speak-${messageId}`);
-        const speakerAvatar = document.getElementById(`participant-${speakerIndex}`);
+        const speakerDisplay = document.getElementById(`participant-${speakerIndex}`);
         
         try {
             if (speakButton) speakButton.classList.add('speaking');
@@ -1167,29 +1381,31 @@ async function speak(text: string, voiceName: string, messageId: string, speaker
                 source.onended = () => {
                     state.activeAudioSources.delete(source);
                     if (speakButton) speakButton.classList.remove('speaking');
-                    if (speakerAvatar) speakerAvatar.classList.remove('is-speaking');
+                    if (speakerDisplay) speakerDisplay.classList.remove('is-speaking', 'is-thinking');
                     ctx.close();
                     resolve();
                 };
                 
-                if (speakerAvatar) speakerAvatar.classList.add('is-speaking');
+                if (speakerDisplay) speakerDisplay.classList.add('is-speaking');
                 source.start();
 
             } else {
                 if (speakButton) speakButton.classList.remove('speaking');
+                if (speakerDisplay) speakerDisplay.classList.remove('is-thinking');
                 resolve();
             }
         } catch (error) {
             console.error("TTS Error:", error);
             showToast(getTranslation('ttsError'), 'error');
             if (speakButton) speakButton.classList.remove('speaking');
-            if (speakerAvatar) speakerAvatar.classList.remove('is-speaking');
+            if (speakerDisplay) speakerDisplay.classList.remove('is-speaking', 'is-thinking');
             resolve();
         }
     });
 }
 
 function stopAllAudio() {
+  stopPreviewAudio();
   state.activeAudioSources.forEach(source => {
     try {
       source.stop();
@@ -1258,18 +1474,20 @@ function removeAttachment() {
 function toggleWebSearch() {
   state.isSearchEnabled = !state.isSearchEnabled;
   const button = document.getElementById('toggle-search-button');
-  const span = button.querySelector('span:last-child');
+  const span = button.querySelector('span');
   button.classList.toggle('active', state.isSearchEnabled);
   span.textContent = getTranslation(state.isSearchEnabled ? 'searchWebOn' : 'searchWeb');
 }
 
 async function toggleRecording() {
     const recordButton = document.getElementById('record-button');
+    const icon = recordButton.querySelector('svg');
+
     if (state.isRecording) {
         state.mediaRecorder.stop();
         state.isRecording = false;
         recordButton.classList.remove('recording');
-        recordButton.textContent = '🎤';
+        icon.innerHTML = `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line>`;
     } else {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1277,7 +1495,7 @@ async function toggleRecording() {
             state.mediaRecorder.start();
             state.isRecording = true;
             recordButton.classList.add('recording');
-            recordButton.textContent = '🛑';
+            icon.innerHTML = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>`;
 
             state.audioChunks = [];
             state.mediaRecorder.addEventListener("dataavailable", event => {
