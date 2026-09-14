@@ -1,8 +1,0 @@
-{
-  "name": "Ai Debate ",
-  "description": "Different characters , debate on topics of your choice, also live chat with characters or voice communication",
-  "requestFramePermissions": [
-    "microphone",
-    "geolocation"
-  ]
-}
