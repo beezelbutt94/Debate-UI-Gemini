@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
-import { stripe, planFromPriceId, PLAN_CREDITS } from '@/lib/stripe';
+import { getStripe, planFromPriceId, PLAN_CREDITS } from '@/lib/stripe';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET);
+    event = getStripe().webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     return NextResponse.json({ error: `invalid_signature: ${(err as Error).message}` }, { status: 400 });
   }
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 async function resolvePriceId(event: Stripe.Event): Promise<string | null> {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+    const lineItems = await getStripe().checkout.sessions.listLineItems(session.id, { limit: 1 });
     return lineItems.data[0]?.price?.id ?? null;
   }
   if (event.type === 'invoice.paid') {

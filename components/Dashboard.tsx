@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { CampaignLog, UserRow } from '@/lib/types';
+import type { CampaignLog, PlatformConnection, UserRow } from '@/lib/types';
 
 const PLANS = [
   { id: 'starter', label: 'Starter', price: '€49/mo', credits: '50k views' },
@@ -9,14 +9,21 @@ const PLANS = [
   { id: 'agency', label: 'Agency', price: '€499/mo', credits: '1M views' },
 ] as const;
 
+const AD_ACCOUNTS = [
+  { platform: 'tiktok', label: 'TikTok Ads' },
+  { platform: 'google', label: 'Google Ads' },
+] as const;
+
 const DEFAULT_CREDIT_REQUEST = 1000;
 
 export default function Dashboard({
   user,
   campaigns: initialCampaigns,
+  connections,
 }: {
   user: UserRow;
   campaigns: CampaignLog[];
+  connections: PlatformConnection[];
 }) {
   const [url, setUrl] = useState('');
   const [credits, setCredits] = useState(DEFAULT_CREDIT_REQUEST);
@@ -96,6 +103,35 @@ export default function Dashboard({
           </button>
         </form>
         {message && <p className="mt-2 text-sm text-neutral-500">{message}</p>}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">
+          Ad accounts
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {AD_ACCOUNTS.map((account) => {
+            const connected = connections.some((c) => c.platform === account.platform);
+            return (
+              <div
+                key={account.platform}
+                className="flex items-center justify-between rounded-md border border-neutral-200 px-4 py-3 dark:border-neutral-800"
+              >
+                <span className="text-sm font-medium">{account.label}</span>
+                {connected ? (
+                  <span className="text-sm text-green-600 dark:text-green-500">Connected ✓</span>
+                ) : (
+                  <a
+                    href={`/api/oauth/${account.platform}/start`}
+                    className="rounded-md border border-brand-600 px-3 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-neutral-900"
+                  >
+                    Connect
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section>

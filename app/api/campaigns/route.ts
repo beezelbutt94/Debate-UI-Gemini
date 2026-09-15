@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
   try {
     const client = getDistributionClient(platform);
     const result = await client.amplify({
+      userId: user.id,
       platform,
       contentUrl: url,
       budgetMicros: credits,

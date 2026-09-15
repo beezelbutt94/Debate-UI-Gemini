@@ -1,8 +1,22 @@
 import Stripe from 'stripe';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  apiVersion: '2025-02-24.acacia',
-});
+let cached: Stripe | null = null;
+
+/**
+ * Lazily constructed so importing this module (which happens at build
+ * time, e.g. Next.js collecting route configs) never requires
+ * STRIPE_SECRET_KEY to be set. The clear failure happens on first real
+ * use instead, which is when it's actually actionable.
+ */
+export function getStripe(): Stripe {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY is not configured.');
+  }
+  if (!cached) {
+    cached = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
+  }
+  return cached;
+}
 
 export type Plan = 'starter' | 'pro' | 'agency';
 

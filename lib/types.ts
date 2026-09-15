@@ -5,6 +5,11 @@ export interface UserRow {
   active_credits: number;
 }
 
+export interface PlatformConnection {
+  platform: 'tiktok' | 'google';
+  external_account_id: string | null;
+}
+
 export interface CampaignLog {
   id: number;
   pasted_url: string;
