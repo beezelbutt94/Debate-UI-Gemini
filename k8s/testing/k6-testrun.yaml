@@ -1,0 +1,33 @@
+# Distributed load test run via the Grafana k6-operator. Requires the
+# k6-operator installed in the cluster and a real `benchmark-credentials`
+# secret (never the load-test script's placeholder default).
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata:
+  name: viralvision-peak-benchmark
+  namespace: load-testing
+spec:
+  parallelism: 4
+  script:
+    configMap:
+      name: k6-benchmark-script
+      file: load_test.js
+  runner:
+    image: grafana/k6:0.50.0
+    resources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "500m"
+        memory: 512Mi
+    env:
+      - name: TARGET_URL
+        value: "https://api.viralvision.io"
+      - name: WS_TARGET_URL
+        value: "wss://collab.viralvision.io"
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: benchmark-credentials
+            key: api-key

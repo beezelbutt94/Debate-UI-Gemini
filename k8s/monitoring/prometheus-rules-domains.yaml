@@ -1,0 +1,46 @@
+# Alerts on broken custom-domain CNAMEs and imminent/expired TLS
+# certificates. Metrics come from app/workers/domain_health.py.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: viralvision-domain-alerts
+  namespace: production
+  labels:
+    role: alert-rules
+    prometheus: k8s
+spec:
+  groups:
+    - name: custom.domains.rules
+      rules:
+        - alert: CustomDomainCNAMEDisconnected
+          expr: viralvision_custom_domain_dns_valid == 0
+          for: 2h
+          labels:
+            severity: warning
+            service: ingress-edge
+            tier: networking
+          annotations:
+            summary: "Custom domain CNAME missing or broken ({{ $labels.domain }})"
+            description: "Domain '{{ $labels.domain }}' for workspace {{ $labels.workspace_id }} no longer points at the platform edge."
+
+        - alert: CustomDomainSSLExpiryWarning
+          expr: viralvision_custom_domain_ssl_expiry_days > 0 and viralvision_custom_domain_ssl_expiry_days <= 15
+          for: 6h
+          labels:
+            severity: warning
+            service: cert-manager
+            tier: networking
+          annotations:
+            summary: "Custom domain SSL certificate expiring soon ({{ $labels.domain }})"
+            description: "Certificate for '{{ $labels.domain }}' expires in {{ $value | printf \"%.1f\" }} days."
+
+        - alert: CustomDomainSSLExpiryCritical
+          expr: viralvision_custom_domain_ssl_expiry_days > 0 and viralvision_custom_domain_ssl_expiry_days <= 3
+          for: 1h
+          labels:
+            severity: critical
+            service: cert-manager
+            tier: networking
+          annotations:
+            summary: "CRITICAL: custom domain SSL expiring in <3 days ({{ $labels.domain }})"
+            description: "Certificate for '{{ $labels.domain }}' (workspace {{ $labels.workspace_id }}) expires in {{ $value | printf \"%.1f\" }} days."

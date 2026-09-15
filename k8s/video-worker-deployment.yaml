@@ -1,0 +1,57 @@
+# GPU-accelerated Celery worker deployment. Requires a node pool with
+# NVIDIA GPUs and the NVIDIA device plugin installed; see
+# k8s/overlays/production/patches/worker-gpu.yaml for node affinity.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viralvision-video-worker
+  namespace: production
+  labels:
+    app: viralvision-video-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: viralvision-video-worker
+  template:
+    metadata:
+      labels:
+        app: viralvision-video-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: ghcr.io/viralvision/worker:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - "celery"
+            - "-A"
+            - "app.workers.celery_app.celery_app"
+            - "worker"
+            - "--loglevel=INFO"
+            - "-Q"
+            - "premium_sla,standard_jobs,draft_preview"
+            - "-c"
+            - "2"
+            - "-E"
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: 16Gi
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: 1
+              memory: 8Gi
+              cpu: "4"
+          envFrom:
+            - secretRef:
+                name: viralvision-production-secrets
+            - configMapRef:
+                name: viralvision-production-config
+          volumeMounts:
+            - name: scratch-space
+              mountPath: /tmp/viralvision_production
+      volumes:
+        - name: scratch-space
+          emptyDir:
+            medium: Memory
+            sizeLimit: 10Gi

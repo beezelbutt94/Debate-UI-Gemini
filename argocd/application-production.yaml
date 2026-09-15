@@ -1,0 +1,62 @@
+# Root ArgoCD Application. argocd-image-updater annotations track new
+# GHCR image tags (^2.4 semver range) and write updated tags back into
+# k8s/overlays/production/kustomization.yaml via a Git commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: viralvision-production
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: |
+      api=ghcr.io/viralvision/api,
+      web=ghcr.io/viralvision/web,
+      worker=ghcr.io/viralvision/worker
+
+    argocd-image-updater.argoproj.io/api.update-strategy: semver
+    argocd-image-updater.argoproj.io/api.allowed-versions: "^2.4"
+    argocd-image-updater.argoproj.io/api.pull-secret: pullsecret:argocd/ghcr-auth-token
+
+    argocd-image-updater.argoproj.io/web.update-strategy: semver
+    argocd-image-updater.argoproj.io/web.allowed-versions: "^2.4"
+    argocd-image-updater.argoproj.io/web.pull-secret: pullsecret:argocd/ghcr-auth-token
+
+    argocd-image-updater.argoproj.io/worker.update-strategy: semver
+    argocd-image-updater.argoproj.io/worker.allowed-versions: "^2.4"
+    argocd-image-updater.argoproj.io/worker.pull-secret: pullsecret:argocd/ghcr-auth-token
+
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-updater-credentials
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
+    argocd-image-updater.argoproj.io/git-branch: main
+
+    # Notification subscriptions (see argocd/notifications/)
+    notifications.argoproj.io/subscribe.on-deployed.slack: "deployments"
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: "deployments"
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: "deployments"
+    notifications.argoproj.io/subscribe.on-deployed.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+    notifications.argoproj.io/subscribe.on-health-degraded.discord: ""
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_WITH_ORG/REPLACE_WITH_REPO.git
+    targetRevision: main
+    path: k8s/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

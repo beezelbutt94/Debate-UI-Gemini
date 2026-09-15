@@ -1,0 +1,64 @@
+# Alerts on GPU VRAM saturation and render-worker OOM kills. Metrics come
+# from app/core/telemetry.py (scraped per k8s/monitoring/service-monitors.yaml)
+# plus the NVIDIA DCGM exporter.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: viralvision-gpu-alerts
+  namespace: production
+  labels:
+    role: alert-rules
+    prometheus: k8s
+spec:
+  groups:
+    - name: gpu.vram.rules
+      rules:
+        - alert: GPUVRAMSaturationWarning
+          expr: |
+            viralvision_gpu_vram_usage_percentage > 85
+            or
+            (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100) > 85
+          for: 3m
+          labels:
+            severity: warning
+            service: video-worker
+            tier: transcode-cluster
+          annotations:
+            summary: "NVIDIA GPU VRAM nearing capacity ({{ $labels.device_id }})"
+            description: "GPU VRAM usage is at {{ $value | printf \"%.1f\" }}% on device {{ $labels.device_id }} (node {{ $labels.instance }})."
+
+        - alert: GPUVRAMCriticalSaturation
+          expr: |
+            viralvision_gpu_vram_usage_percentage > 95
+            or
+            (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100) > 95
+          for: 1m
+          labels:
+            severity: critical
+            service: video-worker
+            tier: transcode-cluster
+          annotations:
+            summary: "CRITICAL: NVIDIA GPU VRAM exhaustion ({{ $labels.device_id }})"
+            description: "GPU VRAM is at {{ $value | printf \"%.1f\" }}% on {{ $labels.device_id }}."
+
+        - alert: TranscodeJobOOMKilled
+          expr: |
+            increase(viralvision_render_failures_total{reason=~"(?i).*(out_of_memory|oom|cuda_error).*"}[2m]) > 0
+          labels:
+            severity: critical
+            service: video-worker
+            tier: transcode-cluster
+          annotations:
+            summary: "Video render failed due to OOM / CUDA error"
+            description: "Job aborted due to memory exhaustion: {{ $labels.reason }}."
+
+        - alert: CeleryWorkerPodOOMKilled
+          expr: |
+            increase(kube_pod_container_status_terminated_reason{container="celery-worker", reason="OOMKilled"}[5m]) > 0
+          labels:
+            severity: critical
+            service: video-worker
+            tier: transcode-cluster
+          annotations:
+            summary: "Celery worker container OOMKilled by Linux cgroups"
+            description: "Pod {{ $labels.pod }} in {{ $labels.namespace }} exceeded its container RAM limit."

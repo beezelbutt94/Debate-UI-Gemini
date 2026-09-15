@@ -1,0 +1,53 @@
+# Prometheus Operator scrape targets: the FastAPI gateway, the GPU
+# worker's telemetry endpoint (app/core/telemetry.py start_metrics_server),
+# and the NVIDIA DCGM hardware exporter.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: viralvision-api-monitor
+  namespace: production
+  labels:
+    release: prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: viralvision-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: viralvision-worker-monitor
+  namespace: production
+  labels:
+    release: prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: viralvision-video-worker
+  podMetricsEndpoints:
+    - port: telemetry
+      path: /metrics
+      interval: 10s
+      scrapeTimeout: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidia-dcgm-exporter
+  namespace: gpu-operator
+  labels:
+    release: prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-dcgm-exporter
+  endpoints:
+    - port: gpu-metrics
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 4s

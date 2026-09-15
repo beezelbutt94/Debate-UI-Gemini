@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - ../../base
+  - ../../cert-manager-clusterissuer.yaml
+  - ../../keda-autoscaler.yaml
+  - ../../controller-rbac.yaml
+
+# Rewritten by argocd-image-updater on each new GHCR release.
+images:
+  - name: ghcr.io/viralvision/api
+    newName: ghcr.io/viralvision/api
+    newTag: 0.1.0
+  - name: ghcr.io/viralvision/web
+    newName: ghcr.io/viralvision/web
+    newTag: 0.1.0
+  - name: ghcr.io/viralvision/worker
+    newName: ghcr.io/viralvision/worker
+    newTag: 0.1.0
+
+patches:
+  - path: patches/worker-gpu.yaml
+    target:
+      kind: Deployment
+      name: viralvision-video-worker
+
+configMapGenerator:
+  - name: viralvision-production-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - NEXT_PUBLIC_ROOT_DOMAIN=viralvision.io
