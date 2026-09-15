@@ -5,16 +5,12 @@ them losslessly for further short-form processing.
 Requires the optional `faster-whisper` dependency.
 """
 import json
-import os
 import subprocess
 from typing import List
 
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-
-_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
 
 
 class ExtractedClipCandidate(BaseModel):
@@ -52,21 +48,15 @@ Transcript Data:
 Output strictly valid JSON as an array of objects with keys:
 clip_id, start_second, end_second, duration, hook_text, virality_rationale, confidence_score.
 """
-        response = await _client.messages.create(
+        # No `temperature`: sampling parameters are rejected with a 400 on
+        # claude-opus-5 and the rest of the current model family.
+        response = await get_anthropic_client().messages.create(
             model=ANTHROPIC_MODEL,
             max_tokens=2500,
-            temperature=0.3,
             messages=[{"role": "user", "content": prompt}],
         )
 
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-
-        candidates = json.loads(raw)
+        candidates = json.loads(extract_json_block(response.content[0].text))
         return [ExtractedClipCandidate(**c) for c in candidates]
 
     def extract_lossless_subclip(self, source_video_path: str, start_sec: float, duration_sec: float, output_subclip_path: str) -> str:

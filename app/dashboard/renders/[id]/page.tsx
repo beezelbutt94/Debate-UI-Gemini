@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { PlatformServiceNotice } from '@/components/PlatformServiceNotice';
+import { platformApiFetch } from '@/lib/platform-api';
 import { CheckCircle2, Clock, Download, Share2, AlertCircle, Sparkles, Copy, TrendingUp } from 'lucide-react';
 
 interface RenderJobStatus {
@@ -26,21 +28,41 @@ export default function RenderStatusPage() {
 
   const [job, setJob] = useState<RenderJobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [reachError, setReachError] = useState(false);
 
   const fetchStatus = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/v1/videos/${videoId}/status`);
-      if (!res.ok) throw new Error('Could not retrieve render status');
-      const data = await res.json();
-      setJob(data);
-      return data.status === 'completed' || data.status === 'failed';
-    } catch (err: any) {
-      setError(err.message);
+    const result = await platformApiFetch<RenderJobStatus>(`/api/v1/videos/${videoId}/status`);
+
+    if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
       return true;
     }
+    if (result.state === 'not_found') {
+      // The service answered and has no such render. Reporting this as a
+      // backend outage sent people to check a service that was working
+      // fine, when the real answer is that this id is wrong or expired.
+      setNotFound(true);
+      setError(`No render job with id "${videoId}". It may have expired or been deleted.`);
+      return true;
+    }
+    if (result.state === 'unreachable') {
+      setReachError(true);
+      setError(`Could not reach the render service: ${result.message}`);
+      return true;
+    }
+    if (result.state === 'error') {
+      setError(result.message);
+      return true;
+    }
+
+    setJob(result.data);
+    return result.data.status === 'completed' || result.data.status === 'failed';
   }, [videoId]);
 
   useEffect(() => {
@@ -69,28 +91,69 @@ export default function RenderStatusPage() {
   const handleDirectPublish = async (platform: 'tiktok' | 'instagram' | 'youtube') => {
     setIsPublishing(true);
     setPublishSuccess(null);
-    try {
-      const res = await fetch('/api/v1/social/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_id: videoId, platform }),
-      });
-      if (!res.ok) throw new Error(`Failed publishing to ${platform}`);
-      setPublishSuccess(`Successfully dispatched to ${platform.toUpperCase()}!`);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsPublishing(false);
+    setPublishError(null);
+
+    // Goes through platformApiFetch so a publish attempt against an absent
+    // backend reports that, rather than "Failed publishing to tiktok" —
+    // which read as a platform rejection and sent people to check their
+    // TikTok account.
+    const result = await platformApiFetch<{ status?: string }>('/api/v1/social/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id: videoId, platform }),
+    });
+
+    // Publishing failures are reported inline, next to the button that
+    // caused them. Routing them to `error` blanked the whole page, taking
+    // the finished render and its download link with it.
+    switch (result.state) {
+      case 'ok':
+        setPublishSuccess(`Successfully dispatched to ${platform.toUpperCase()}!`);
+        break;
+      case 'unavailable':
+        setPublishError('The publishing service is not deployed here, so nothing was sent.');
+        break;
+      case 'unreachable':
+        setPublishError(`Could not reach the publishing service: ${result.message}`);
+        break;
+      case 'not_found':
+        setPublishError('The publishing endpoint does not exist on this backend version.');
+        break;
+      case 'error':
+        // The server's own explanation ("TikTok account not connected",
+        // "Video is not ready for publishing") is far more useful than a
+        // generic failure line.
+        setPublishError(result.message);
+        break;
     }
+
+    setIsPublishing(false);
   };
 
+  if (serviceUnavailable) {
+    return (
+      <div className="max-w-xl mx-auto my-20 px-4">
+        <PlatformServiceNotice feature="Render progress" />
+      </div>
+    );
+  }
+
   if (error) {
+    // "Pipeline Execution Error" for every failure implied the render itself
+    // blew up, which sent people looking at a video pipeline that had never
+    // run. The heading now matches what actually went wrong.
+    const heading = notFound
+      ? 'Render not found'
+      : reachError
+        ? 'Cannot reach the render service'
+        : 'Pipeline Execution Error';
+
     return (
       <div className="max-w-xl mx-auto my-20 p-6 bg-neutral-950 border border-red-900 rounded-xl text-center">
         <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-white">Pipeline Execution Error</h2>
+        <h2 className="text-lg font-bold text-white">{heading}</h2>
         <p className="text-xs text-neutral-400 mt-2">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4 text-xs bg-neutral-800">
+        <Button onClick={() => router.push('/')} className="mt-4 text-xs bg-neutral-800">
           Return to Dashboard
         </Button>
       </div>
@@ -167,6 +230,10 @@ export default function RenderStatusPage() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
                 <Share2 className="w-3.5 h-3.5 text-amber-500" /> Direct Social Publishing
               </h3>
+              {publishError && (
+                <div className="p-2 bg-rose-950/60 border border-rose-800 rounded text-xs text-rose-300 font-mono">{publishError}</div>
+              )}
+
               {publishSuccess && (
                 <div className="p-2 bg-emerald-950/60 border border-emerald-800 rounded text-xs text-emerald-300 font-mono">{publishSuccess}</div>
               )}

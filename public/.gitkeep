@@ -1,0 +1,3 @@
+Static assets served at the site root live here. Kept in git (even when
+empty) because Dockerfile.web's `COPY --from=builder /app/public ./public`
+fails the whole image build if this directory doesn't exist.

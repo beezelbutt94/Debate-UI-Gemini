@@ -2,17 +2,11 @@
 fast-cut scenes with a visual-direction prompt for B-roll matching.
 """
 import json
-import os
 from typing import List
 
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
-# Verify this against Anthropic's current model list before deploying --
-# pin an explicit dated model id rather than tracking "latest" in production.
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-
-_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
 
 
 class StoryboardScene(BaseModel):
@@ -23,16 +17,6 @@ class StoryboardScene(BaseModel):
     camera_motion: str  # zoom_in, zoom_out, pan_left, pan_right, static
     text_overlay: str | None = None
     vibe: str
-
-
-def _extract_json_block(raw: str) -> str:
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    return text
 
 
 async def generate_storyboard_ai(
@@ -56,12 +40,13 @@ Rules:
 Output strictly valid JSON as an array of scene objects with keys:
 scene_num, duration_seconds, voiceover, visual_direction, camera_motion, text_overlay, vibe.
 """
-    response = await _client.messages.create(
+    # No `temperature`: sampling parameters are rejected with a 400 on
+    # claude-opus-5 and the rest of the current model family.
+    response = await get_anthropic_client().messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=2500,
-        temperature=0.3,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    scenes_raw = json.loads(_extract_json_block(response.content[0].text))
+    scenes_raw = json.loads(extract_json_block(response.content[0].text))
     return [StoryboardScene(**scene) for scene in scenes_raw]

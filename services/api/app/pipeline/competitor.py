@@ -2,15 +2,11 @@
 distribution and content gaps for a given handle/platform.
 """
 import json
-import os
 from typing import Any, Dict, List
 
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-
-_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
 
 
 class CompetitorProfile(BaseModel):
@@ -39,18 +35,12 @@ Analyze typical high-performing content structures in this niche and return:
 Output strictly valid JSON matching keys: handle, platform, sampleSize, avgViews, engagementRate, hookBreakdown
 (array of {{"name": str, "frequency": number}}), contentGaps (array of 3 strings).
 """
-        response = await _client.messages.create(
+        # No `temperature`: sampling parameters are rejected with a 400 on
+        # claude-opus-5 and the rest of the current model family.
+        response = await get_anthropic_client().messages.create(
             model=ANTHROPIC_MODEL,
             max_tokens=1500,
-            temperature=0.2,
             messages=[{"role": "user", "content": prompt}],
         )
 
-        content = response.content[0].text.strip()
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-            content = content.strip()
-
-        return CompetitorProfile(**json.loads(content))
+        return CompetitorProfile(**json.loads(extract_json_block(response.content[0].text)))

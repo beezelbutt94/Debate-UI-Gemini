@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { PlatformServiceNotice } from '@/components/PlatformServiceNotice';
+import { platformApiFetch } from '@/lib/platform-api';
 import {
   Globe,
   ShieldCheck,
@@ -28,6 +30,12 @@ interface DomainStatusResponse {
   domain?: string;
   dns_verified?: boolean;
   ssl_ready?: boolean;
+  /**
+   * `ssl_ready: false` alone is ambiguous — it covers both "still issuing"
+   * and "we could not ask the cluster". The backend now reports which.
+   */
+  ssl_state?: 'ready' | 'provisioning' | 'not_provisioned' | 'unknown';
+  ssl_error?: string | null;
   conditions?: CertificateCondition[];
 }
 
@@ -41,6 +49,12 @@ export default function WorkspaceDomainSettingsPage() {
   const [polling, setPolling] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
+
+  // Older backends don't send ssl_state; infer the previous two-way meaning
+  // so this page keeps working against them.
+  const sslState =
+    statusData?.ssl_state ?? (statusData?.ssl_ready ? 'ready' : 'provisioning');
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -50,17 +64,32 @@ export default function WorkspaceDomainSettingsPage() {
 
   const fetchDomainStatus = useCallback(async (showIndicator = false) => {
     if (showIndicator) setPolling(true);
-    try {
-      const res = await fetch('/api/v1/workspace/domain/status', { cache: 'no-store' });
-      if (res.ok) {
-        setStatusData(await res.json());
-      }
-    } catch (err) {
-      console.error('Failed to poll domain status', err);
-    } finally {
-      setLoading(false);
-      if (showIndicator) setPolling(false);
+
+    const result = await platformApiFetch<DomainStatusResponse>(
+      '/api/v1/workspace/domain/status',
+      { cache: 'no-store' }
+    );
+
+    if (result.state === 'ok') {
+      setStatusData(result.data);
+      setServiceUnavailable(false);
+      setErrorMessage(null);
+    } else if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
+    } else if (result.state === 'not_found') {
+      // Not the same as "no domain configured" — that is a 200 with
+      // configured:false. A 404 here means the endpoint itself is missing.
+      setErrorMessage(
+        'The domain status endpoint is missing from this backend. It may be running an older version.'
+      );
+    } else if (result.state === 'unreachable') {
+      setErrorMessage(`Could not reach the domain service: ${result.message}`);
+    } else {
+      setErrorMessage(result.message);
     }
+
+    setLoading(false);
+    if (showIndicator) setPolling(false);
   }, []);
 
   useEffect(() => {
@@ -70,6 +99,11 @@ export default function WorkspaceDomainSettingsPage() {
   useEffect(() => {
     if (!statusData?.configured) return;
     if (statusData.dns_verified && statusData.ssl_ready) return;
+    // Polling only makes sense while something is still in flight. If the
+    // certificate was never requested, or the backend can't reach the
+    // cluster to find out, re-asking every 6s forever just hides the
+    // problem behind a spinner.
+    if (statusData.ssl_state === 'not_provisioned' || statusData.ssl_state === 'unknown') return;
 
     const interval = setInterval(() => fetchDomainStatus(), 6000);
     return () => clearInterval(interval);
@@ -82,23 +116,29 @@ export default function WorkspaceDomainSettingsPage() {
     setSubmitting(true);
     setErrorMessage(null);
 
-    try {
-      const res = await fetch('/api/v1/workspace/domain/bind', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ custom_domain: domainInput.trim().toLowerCase() }),
-      });
+    const result = await platformApiFetch('/api/v1/workspace/domain/bind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_domain: domainInput.trim().toLowerCase() }),
+    });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to bind domain');
-
+    if (result.state === 'ok') {
       setDomainInput('');
       await fetchDomainStatus(true);
-    } catch (err: any) {
-      setErrorMessage(err.message);
-    } finally {
-      setSubmitting(false);
+    } else if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
+    } else if (result.state === 'unreachable') {
+      setErrorMessage(`Could not reach the domain service: ${result.message}`);
+    } else if (result.state === 'not_found') {
+      setErrorMessage('The domain bind endpoint is missing from this backend.');
+    } else {
+      // The backend's detail names the actual problem ("DNS CNAME record not
+      // detected. Point x at y."), which a generic "Failed to bind domain"
+      // threw away.
+      setErrorMessage(result.message);
     }
+
+    setSubmitting(false);
   };
 
   const handleDisconnect = async () => {
@@ -107,12 +147,37 @@ export default function WorkspaceDomainSettingsPage() {
     }
 
     setLoading(true);
-    try {
-      const res = await fetch('/api/v1/workspace/domain/unbind', { method: 'DELETE' });
-      if (res.ok) setStatusData({ configured: false });
-    } finally {
-      setLoading(false);
+    setErrorMessage(null);
+
+    const result = await platformApiFetch<{ status?: string; detail?: string }>(
+      '/api/v1/workspace/domain/unbind',
+      { method: 'DELETE' }
+    );
+
+    if (result.state === 'ok') {
+      setStatusData({ configured: false });
+      // The backend returns 'partial' when the domain was unbound in the
+      // database but its cluster resources survived — the old domain can
+      // still serve traffic, so that cannot be reported as a clean success.
+      if (result.data?.status === 'partial') {
+        setErrorMessage(
+          result.data.detail ??
+            'The domain was disconnected, but its cluster resources could not be removed.'
+        );
+      }
+    } else if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
+    } else {
+      // Previously every failure here was swallowed: the button spun, the
+      // domain stayed connected, and nothing on screen changed.
+      setErrorMessage(
+        result.state === 'not_found'
+          ? 'The domain unbind endpoint is missing from this backend.'
+          : `Could not disconnect the domain: ${result.message}`
+      );
     }
+
+    setLoading(false);
   };
 
   if (loading) {
@@ -142,7 +207,9 @@ export default function WorkspaceDomainSettingsPage() {
         </div>
       )}
 
-      {!statusData?.configured ? (
+      {serviceUnavailable ? (
+        <PlatformServiceNotice feature="Custom domains" />
+      ) : !statusData?.configured ? (
         <div className="p-6 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-5">
           <div>
             <h3 className="text-base font-bold text-white">Connect Custom Domain</h3>
@@ -234,6 +301,13 @@ export default function WorkspaceDomainSettingsPage() {
                     <span className="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-800 text-emerald-400 text-[10px] font-mono uppercase font-bold flex items-center gap-1">
                       <ShieldCheck className="w-3 h-3" /> Active
                     </span>
+                  ) : sslState === 'unknown' || sslState === 'not_provisioned' ? (
+                    // A spinner here would promise progress that isn't
+                    // happening: nothing is issuing, and waiting won't help.
+                    <span className="px-2 py-0.5 rounded bg-rose-950/80 border border-rose-800 text-rose-400 text-[10px] font-mono uppercase font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {sslState === 'unknown' ? 'Status unknown' : 'Not started'}
+                    </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-800 text-amber-400 text-[10px] font-mono uppercase font-bold flex items-center gap-1">
                       <Loader2 className="w-3 h-3 animate-spin" /> Issuing
@@ -241,7 +315,9 @@ export default function WorkspaceDomainSettingsPage() {
                   )}
                 </div>
                 <p className="text-xs text-neutral-400">
-                  {statusData.ssl_ready ? 'Valid TLS certificate active with automatic renewal.' : 'ACME challenge in progress.'}
+                  {statusData.ssl_ready
+                    ? 'Valid TLS certificate active with automatic renewal.'
+                    : statusData.ssl_error ?? 'ACME challenge in progress.'}
                 </p>
               </div>
             </div>

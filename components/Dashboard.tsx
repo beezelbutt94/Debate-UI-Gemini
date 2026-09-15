@@ -24,7 +24,32 @@ const AD_ACCOUNTS = [
   { platform: 'google', label: 'Google Ads' },
 ] as const;
 
+/** Fallbacks for error codes the API can return without a `detail`. */
+const CAMPAIGN_ERRORS: Record<string, string> = {
+  not_connected: "You haven't connected that platform's ad account yet.",
+  not_configured: "This platform isn't set up on this deployment yet.",
+  not_implemented: "Campaigns for this platform aren't available yet.",
+  upstream_error: 'The ad platform rejected the campaign.',
+  unsupported_url: 'Only TikTok and YouTube links are accepted.',
+  unauthenticated: 'Please sign in again.',
+};
+
 const DEFAULT_CREDIT_REQUEST = 1000;
+
+/**
+ * A failed request can return an HTML error page rather than JSON. Letting
+ * `res.json()` throw there turns a reportable server error into an unhandled
+ * rejection, so the caller can't tell the user anything useful.
+ */
+async function readJson(res: Response): Promise<Record<string, any>> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { detail: `Unexpected response from the server (${res.status}).` };
+  }
+}
 
 export default function Dashboard({
   user,
@@ -67,30 +92,71 @@ export default function Dashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, credits }),
       });
-      const body = await res.json();
-      if (res.status === 402) {
-        setMessage('Not enough credits for this request. Upgrade your plan below.');
-      } else if (!res.ok) {
-        setMessage(body.error ?? 'Something went wrong.');
-      } else {
+      const body = await readJson(res);
+
+      if (res.ok) {
         setCampaigns((prev) => [body.campaign, ...prev]);
         setActiveCredits((prev) => prev - credits);
         setUrl('');
-        setMessage('Campaign submitted.');
+        // A 201 can still carry a warning: the campaign is live but its
+        // status row didn't get written. Saying "submitted" and hiding that
+        // invites a resubmit that spends the creator's ad budget twice.
+        setMessage(
+          body.warning
+            ? `Campaign submitted, but: ${body.detail ?? body.warning}`
+            : 'Campaign submitted.'
+        );
+        return;
       }
+
+      if (res.status === 402) {
+        setMessage('Not enough credits for this request. Upgrade your plan below.');
+        return;
+      }
+
+      // The route returns a machine-readable `error` plus human `detail`
+      // and `remedy`. Showing the bare code ("not_implemented") tells the
+      // creator nothing about what to do next.
+      setMessage(
+        [body.detail ?? CAMPAIGN_ERRORS[body.error] ?? 'Something went wrong.', body.remedy]
+          .filter(Boolean)
+          .join(' ') +
+          (body.refunded ? ' Your credits were refunded.' : '')
+      );
+    } catch (err) {
+      // Without this the request could fail and leave the form looking
+      // idle, as if the click never registered.
+      setMessage(`Could not reach the server: ${(err as Error).message}`);
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleUpgrade(plan: (typeof PLANS)[number]['id']) {
-    const res = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
-    });
-    const body = await res.json();
-    if (body.url) window.location.href = body.url;
+    setMessage(null);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const body = await readJson(res);
+
+      if (res.ok && body.url) {
+        window.location.href = body.url;
+        return;
+      }
+
+      // Previously this branch did nothing at all: a failed checkout left
+      // the button looking inert with no explanation.
+      setMessage(
+        body.detail ??
+          body.error ??
+          `Could not start checkout (${res.status}). Please try again.`
+      );
+    } catch (err) {
+      setMessage(`Could not reach the server: ${(err as Error).message}`);
+    }
   }
 
   return (
