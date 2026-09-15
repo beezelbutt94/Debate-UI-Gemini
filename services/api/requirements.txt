@@ -1,0 +1,22 @@
+# Core API + worker dependencies. Enough to run `uvicorn app.main:app` and
+# the Celery worker for everything except the ML-heavy pipeline steps
+# (storyboarding/subtitles/crop/CLIP matching/repurposing) -- see
+# requirements-ml.txt for those.
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+sqlalchemy==2.0.35
+alembic==1.13.3
+psycopg2-binary==2.9.9
+redis==5.0.8
+celery==5.4.0
+kombu==5.4.2
+stripe==10.12.0
+boto3==1.35.36
+requests==2.32.3
+anthropic==0.34.2
+python-dotenv==1.0.1
+dnspython==2.6.1
+kubernetes==31.0.0
+prometheus-client==0.21.0
+numpy==2.1.1

@@ -1,0 +1,28 @@
+# Schedules the GPU worker onto NVIDIA-equipped nodes with matching
+# tolerations. Adjust the nodeSelector key/value for your cloud provider
+# (this one targets a GKE g2 node pool with L4 GPUs).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viralvision-video-worker
+spec:
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: celery-worker
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              memory: 16Gi
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: "1"
+              memory: 8Gi
+              cpu: "4"

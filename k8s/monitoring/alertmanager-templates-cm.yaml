@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-templates
+  namespace: monitoring
+data:
+  gpu-alerts.tmpl: |
+    {{ define "slack.gpu.title" }}
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} - {{ .CommonLabels.service }}
+    {{ end }}
+
+    {{ define "slack.gpu.text" }}
+      {{ range .Alerts }}
+        *Alert:* `{{ .Labels.alertname }}` (Severity: `{{ .Labels.severity }}`)
+        *Component:* {{ .Annotations.summary }}
+        *Description:* {{ .Annotations.description }}
+        *Device / Pod:* `{{ .Labels.device_id }}{{ if .Labels.pod }}{{ .Labels.pod }}{{ end }}`
+        *Started At:* <!date^{{ .StartsAt.Unix }}^{date_num} {time_secs}|{{ .StartsAt }}>
+        ---
+      {{ end }}
+      *Action:* <https://grafana.viralvision.io/d/gpu-telemetry?var-device={{ .CommonLabels.device_id }}|Open GPU Dashboard>
+    {{ end }}
+
+    {{ define "discord.gpu.title" }}
+      [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})
+    {{ end }}
+
+    {{ define "discord.gpu.message" }}
+      {{ range .Alerts }}
+        **Summary:** {{ .Annotations.summary }}
+        **Description:** {{ .Annotations.description }}
+        **Affected Device:** `{{ .Labels.device_id }}`
+        **Node/Host:** `{{ .Labels.instance }}`
+      {{ end }}
+      **Grafana Telemetry:** https://grafana.viralvision.io/d/gpu-telemetry
+    {{ end }}

@@ -1,0 +1,36 @@
+# Runs `alembic upgrade head` as an ArgoCD PreSync hook so the deployment
+# rollout waits for schema changes to land first.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: viralvision-db-migration
+  namespace: production
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app: viralvision-db-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: alembic-migrator
+          image: ghcr.io/viralvision/api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef:
+                name: viralvision-production-secrets
+            - configMapRef:
+                name: viralvision-production-config
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: "250m"
+              memory: 512Mi

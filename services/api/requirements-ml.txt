@@ -1,0 +1,13 @@
+# Optional, heavy dependencies for the ML-driven pipeline steps. Only
+# needed on the GPU worker image (Dockerfile.worker), not the API/web
+# processes. Installing these on a laptop for local testing is possible
+# but slow and large (torch alone is several GB with CUDA extras).
+faster-whisper==1.0.3
+librosa==0.10.2
+torch==2.4.1
+open_clip_torch==2.26.1
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.14
+pgvector==0.3.5
+pynvml==11.5.3
+livekit-server-sdk==0.7.0

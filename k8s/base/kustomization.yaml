@@ -1,0 +1,13 @@
+# Base kustomization referencing the manifests that exist in this repo.
+#
+# NOT YET WRITTEN: api-deployment.yaml and web-deployment.yaml. The source
+# design docs referenced them (an "api" and "web" Deployment alongside the
+# GPU "worker" one) but never included their content, and this repo's
+# actual Next.js app currently has no Kubernetes deployment target at all
+# (nothing here suggests it isn't just deployed to Vercel, per the
+# existing README). Author those two manifests once the deployment target
+# for `services/api` and the Next.js app is actually decided -- don't
+# reference them from here until they exist, or `kustomize build` will
+# fail on a missing file.
+resources:
+  - ../video-worker-deployment.yaml

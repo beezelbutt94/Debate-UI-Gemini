@@ -33,3 +33,9 @@ dist-ssr
 # typescript
 next-env.d.ts
 *.tsbuildinfo
+
+# python (services/api)
+__pycache__/
+*.pyc
+.venv/
+venv/

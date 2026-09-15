@@ -105,3 +105,12 @@ Before any production deploy:
 5. Keep Stripe in **test mode** and the distribution env vars unset until
    you're ready to take real payments and place real ad spend — both are
    irreversible, user-visible actions worth a deliberate go/no-go.
+
+## ViralVision platform expansion (separate, unbuilt scaffold)
+
+`services/api/`, `services/collab/`, `k8s/`, and `argocd/` are an
+organized-but-unrun scaffold for a much larger, separate "ViralVision"
+AI video-generation platform described in a batch of architecture docs.
+They don't affect anything above — the app you're reading about here
+still works exactly as documented. See **`docs/PLATFORM_ROADMAP.md`**
+for what's there, what it maps to, and what's explicitly not done yet.

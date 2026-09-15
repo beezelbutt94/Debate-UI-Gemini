@@ -1,0 +1,28 @@
+# Scales the GPU worker deployment 1-16 replicas based on Redis list
+# depth for the two highest-traffic queues. Requires KEDA installed in
+# the cluster.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: video-worker-autoscaler
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: viralvision-video-worker
+  minReplicaCount: 1
+  maxReplicaCount: 16
+  cooldownPeriod: 300
+  pollingInterval: 15
+  triggers:
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_URL
+        listName: premium_sla
+        listLength: "2"
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_URL
+        listName: standard_jobs
+        listLength: "5"
