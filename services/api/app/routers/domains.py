@@ -6,6 +6,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -60,6 +61,12 @@ def get_domain_ssl_status(
     resource_name = f"tenant-{ws.id[:8]}-{domain.replace('.', '-')}"
     dns_verified = CustomDomainController.verify_dns_cname(domain)
 
+    # "We asked and the cert isn't ready" and "we couldn't ask" are different
+    # answers. Collapsing both into ssl_ready=False tells the customer their
+    # certificate is still pending when the real problem is that this service
+    # can't reach the cluster -- so they wait instead of escalating, and the
+    # outage stays invisible.
+    ssl_error: str | None = None
     try:
         from app.k8s_controller import _clients
 
@@ -69,14 +76,35 @@ def get_domain_ssl_status(
         )
         conditions = cert.get("status", {}).get("conditions", [])
         ssl_ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
-    except Exception:
+        ssl_state = "ready" if ssl_ready else "provisioning"
+    except ApiException as exc:
         conditions, ssl_ready = [], False
+        if exc.status == 404:
+            # The cluster answered: no Certificate resource for this domain.
+            # Provisioning never started (or was torn down) -- actionable,
+            # and distinct from an unreachable cluster.
+            ssl_state = "not_provisioned"
+            ssl_error = "No certificate resource exists for this domain. Re-bind the domain to start provisioning."
+            logger.warning("No Certificate %s found for domain %s", resource_name, domain)
+        else:
+            ssl_state = "unknown"
+            ssl_error = f"cert-manager query failed ({exc.status})."
+            logger.error("cert-manager query failed for %s: %s", domain, exc)
+    except Exception as exc:  # noqa: BLE001 - kube client raises a wide range on config/network failure
+        conditions, ssl_ready = [], False
+        ssl_state = "unknown"
+        ssl_error = "Could not reach the cluster to check certificate status."
+        logger.error("Cluster unreachable while checking SSL for %s: %s", domain, exc)
 
     return {
         "configured": True,
         "domain": domain,
         "dns_verified": dns_verified,
+        # Retained for existing clients; `ssl_state` is what new callers
+        # should branch on, because ssl_ready=False is ambiguous on its own.
         "ssl_ready": ssl_ready,
+        "ssl_state": ssl_state,
+        "ssl_error": ssl_error,
         "conditions": conditions,
     }
 
@@ -94,13 +122,36 @@ def unbind_custom_domain(
     if not domain:
         return {"status": "noop", "message": "No custom domain currently configured for this workspace"}
 
+    # The DB unbind happens either way -- leaving the workspace pointed at a
+    # domain the customer asked to remove is worse than an orphaned cluster
+    # resource. But reporting "success" when the Ingress and Certificate are
+    # still live means nobody ever cleans them up, and the old domain keeps
+    # serving the tenant.
+    teardown_error: str | None = None
     try:
         CustomDomainController.revoke_custom_domain(workspace_id=ws.id, custom_domain=domain)
-    except Exception as exc:  # noqa: BLE001 - cluster cleanup best-effort, still clear DB state below
-        logger.error("Cluster teardown error for %s: %s", domain, exc)
+    except Exception as exc:  # noqa: BLE001 - kube client raises a wide range on config/network failure
+        teardown_error = str(exc)
+        logger.error(
+            "ORPHANED CLUSTER RESOURCES: unbound %s from workspace %s in the database but "
+            "cert-manager/ingress teardown failed and must be cleaned up manually: %s",
+            domain, ws.id, exc,
+        )
 
     ws.custom_domain = None
     db.commit()
+
+    if teardown_error:
+        return {
+            "status": "partial",
+            "unbound_domain": domain,
+            "detail": (
+                "The domain was unbound from this workspace, but its cluster resources "
+                "could not be removed and may still serve traffic. This needs operator cleanup."
+            ),
+            "error": teardown_error,
+        }
+
     return {"status": "success", "unbound_domain": domain}
 
 

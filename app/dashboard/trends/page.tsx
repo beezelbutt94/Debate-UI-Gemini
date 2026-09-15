@@ -22,20 +22,33 @@ export default function TrendDetectionDashboard() {
   const [filterType, setFilterType] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(true);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTrends() {
       setLoading(true);
+      setErrorMessage(null);
       const query = filterType !== 'all' ? `?type=${filterType}` : '';
       const result = await platformApiFetch<TrendItem[]>(`/api/v1/analytics/trends${query}`);
 
-      if (result.state === 'ok') {
-        setTrends(result.data);
-        setServiceUnavailable(false);
-      } else {
-        setTrends([]);
-        setServiceUnavailable(result.state === 'unavailable');
+      setTrends(result.state === 'ok' ? result.data : []);
+      setServiceUnavailable(result.state === 'unavailable');
+
+      // Previously every non-ok state that wasn't 'unavailable' fell through
+      // to an empty list, so a failed request rendered as "No trend data
+      // yet" — telling the user their data is empty when we simply never
+      // got an answer.
+      if (result.state === 'unreachable') {
+        setErrorMessage(
+          `The trend service is configured but did not respond (${result.message}). ` +
+            'This is an outage, not an empty result.'
+        );
+      } else if (result.state === 'error') {
+        setErrorMessage(result.message);
+      } else if (result.state === 'not_found') {
+        setErrorMessage('The trend service has no endpoint at this path — it may be out of date.');
       }
+
       setLoading(false);
     }
     loadTrends();
@@ -77,6 +90,11 @@ export default function TrendDetectionDashboard() {
         </div>
       ) : serviceUnavailable ? (
         <PlatformServiceNotice feature="Trend detection" />
+      ) : errorMessage ? (
+        <div className="py-20 px-6 text-center space-y-2 border border-rose-900 bg-rose-950/40 rounded-2xl">
+          <p className="text-sm font-semibold text-rose-200">Could not load trends</p>
+          <p className="text-xs text-rose-300/80 font-mono">{errorMessage}</p>
+        </div>
       ) : trends.length === 0 ? (
         <div className="py-24 text-center text-xs text-neutral-500 font-mono">
           No trend data yet. Ingest a snapshot via `/api/v1/analytics/trends/ingest` to see it here.

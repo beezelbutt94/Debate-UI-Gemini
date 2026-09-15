@@ -25,7 +25,13 @@ def initialize_runtime() -> None:
         Base.metadata.create_all(bind=engine)
         logger.info("Schema definitions synchronized with target database.")
     except Exception as exc:
-        logger.error("Schema sync encountered a warning: %s", exc)
+        # Not a warning. This runs as an init container ahead of serving
+        # traffic precisely so a schema problem stops the rollout; letting
+        # it through means every request that touches a missing table 500s
+        # at runtime instead, with the real cause buried in startup logs
+        # nobody is looking at any more.
+        logger.critical("Schema synchronization failed, refusing to start: %s", exc)
+        sys.exit(1)
 
     logger.info("System initialization complete. Ready for requests.")
 
