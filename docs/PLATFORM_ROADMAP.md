@@ -31,11 +31,13 @@ and wire up in one pass. What actually happened:
    was extracted, consolidated (duplicate model/router declarations
    across docs were merged onto one `Base`/one router), and organized
    into `services/api/` (FastAPI + Celery) and `services/collab/`
-   (Yjs websocket server). It compiles (`py_compile` clean) but has
-   **never been run** — no Postgres, Redis, GPU, or third-party API key
-   exists in this environment to test it against. See
-   `services/api/README.md` for exactly what's needed before treating
-   any endpoint as real.
+   (Yjs websocket server). The app now **boots** — `uvicorn app.main:app`
+   serves 43 OpenAPI paths and `/healthz` — but no endpoint that touches
+   Postgres, Redis, a GPU, or a third-party API has been exercised
+   end-to-end, because none of those exist in this environment. See
+   `services/api/README.md` for what's needed before treating any
+   endpoint as real, and `docs/DEBUG_RUN.md` for what the boot attempt
+   surfaced and fixed.
 3. **Where the docs described infrastructure**, that became real,
    YAML-valid manifests under `k8s/` and `argocd/` — again, never applied
    to an actual cluster.

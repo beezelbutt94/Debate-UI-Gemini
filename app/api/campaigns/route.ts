@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { detectPlatform, getDistributionClient } from '@/lib/distribution';
 
 export async function POST(req: NextRequest) {
@@ -56,10 +57,19 @@ export async function POST(req: NextRequest) {
       contentUrl: url,
       budgetMicros: credits,
     });
-    await supabase
+
+    // Service-role write: campaign_logs has only a SELECT policy (see
+    // 0001_init.sql), so the same update through the RLS-scoped client
+    // matches zero rows and reports no error — the campaign would sit at
+    // 'pending' forever even after a successful amplify().
+    const { error: statusError } = await createSupabaseAdminClient()
       .from('campaign_logs')
       .update({ status: result.status, external_campaign_id: result.externalCampaignId })
       .eq('id', campaign.id);
+
+    if (statusError) {
+      console.error('campaign status write failed:', statusError.message);
+    }
   } catch (err) {
     console.error('distribution gateway not yet configured:', (err as Error).message);
   }

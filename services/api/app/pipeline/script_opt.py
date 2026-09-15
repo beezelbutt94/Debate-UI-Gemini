@@ -2,15 +2,11 @@
 disruptive 0-3s hook, fast pacing, and platform-appropriate word density.
 """
 import json
-import os
 from typing import Any, Dict, List
 
-from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-
-_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
 
 
 class ScriptOptimizationReport(BaseModel):
@@ -22,16 +18,6 @@ class ScriptOptimizationReport(BaseModel):
     estimated_duration_seconds: float
     pacing_wpm: int
     retention_triggers: List[str]
-
-
-def _extract_json_block(raw: str) -> str:
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    return text
 
 
 async def optimize_script_for_virality(
@@ -57,12 +43,13 @@ Execution Rules:
 4. Output strictly valid JSON matching keys: original_input, optimized_script, hook_score,
    hook_rationale, target_platform, estimated_duration_seconds, pacing_wpm, retention_triggers.
 """
-    response = await _client.messages.create(
+    # No `temperature`: sampling parameters are rejected with a 400 on
+    # claude-opus-5 and the rest of the current model family.
+    response = await get_anthropic_client().messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=1500,
-        temperature=0.4,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    data: Dict[str, Any] = json.loads(_extract_json_block(response.content[0].text))
+    data: Dict[str, Any] = json.loads(extract_json_block(response.content[0].text))
     return ScriptOptimizationReport(**data)

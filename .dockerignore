@@ -1,0 +1,31 @@
+# Keep secrets and local build state out of the image and build context.
+# Without this, `COPY . .` in Dockerfile.web bakes .env.local (live
+# Supabase keys) into an image layer, where it survives even if a later
+# layer deletes it.
+.env
+.env.local
+.env*.local
+
+node_modules
+.next
+out
+dist
+
+.git
+.github
+.gitignore
+
+# Other services build from their own Dockerfiles / contexts.
+services/collab/node_modules
+__pycache__
+*.pyc
+.venv
+venv
+
+# Docs and infra manifests are not needed at runtime.
+docs
+k8s
+argocd
+tests
+*.md
+!README.md

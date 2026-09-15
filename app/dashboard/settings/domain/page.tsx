@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { PlatformServiceNotice } from '@/components/PlatformServiceNotice';
+import { platformApiFetch } from '@/lib/platform-api';
 import {
   Globe,
   ShieldCheck,
@@ -41,6 +43,7 @@ export default function WorkspaceDomainSettingsPage() {
   const [polling, setPolling] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -50,17 +53,23 @@ export default function WorkspaceDomainSettingsPage() {
 
   const fetchDomainStatus = useCallback(async (showIndicator = false) => {
     if (showIndicator) setPolling(true);
-    try {
-      const res = await fetch('/api/v1/workspace/domain/status', { cache: 'no-store' });
-      if (res.ok) {
-        setStatusData(await res.json());
-      }
-    } catch (err) {
-      console.error('Failed to poll domain status', err);
-    } finally {
-      setLoading(false);
-      if (showIndicator) setPolling(false);
+
+    const result = await platformApiFetch<DomainStatusResponse>(
+      '/api/v1/workspace/domain/status',
+      { cache: 'no-store' }
+    );
+
+    if (result.state === 'ok') {
+      setStatusData(result.data);
+      setServiceUnavailable(false);
+    } else if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
+    } else {
+      setErrorMessage(result.message);
     }
+
+    setLoading(false);
+    if (showIndicator) setPolling(false);
   }, []);
 
   useEffect(() => {
@@ -142,7 +151,9 @@ export default function WorkspaceDomainSettingsPage() {
         </div>
       )}
 
-      {!statusData?.configured ? (
+      {serviceUnavailable ? (
+        <PlatformServiceNotice feature="Custom domains" />
+      ) : !statusData?.configured ? (
         <div className="p-6 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-5">
           <div>
             <h3 className="text-base font-bold text-white">Connect Custom Domain</h3>

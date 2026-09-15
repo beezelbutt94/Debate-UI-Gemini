@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Flame, TrendingUp, Music, Hash, Sparkles, Loader2 } from 'lucide-react';
+import { PlatformServiceNotice } from '@/components/PlatformServiceNotice';
+import { platformApiFetch } from '@/lib/platform-api';
+import { Flame, TrendingUp, Music, Hash, Loader2 } from 'lucide-react';
 
 interface TrendItem {
   id: string;
@@ -21,19 +21,22 @@ export default function TrendDetectionDashboard() {
   const [trends, setTrends] = useState<TrendItem[]>([]);
   const [filterType, setFilterType] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(true);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
 
   useEffect(() => {
     async function loadTrends() {
       setLoading(true);
-      try {
-        const query = filterType !== 'all' ? `?type=${filterType}` : '';
-        const res = await fetch(`/api/v1/analytics/trends${query}`);
-        if (res.ok) setTrends(await res.json());
-      } catch (err) {
-        console.error('Failed to load trends', err);
-      } finally {
-        setLoading(false);
+      const query = filterType !== 'all' ? `?type=${filterType}` : '';
+      const result = await platformApiFetch<TrendItem[]>(`/api/v1/analytics/trends${query}`);
+
+      if (result.state === 'ok') {
+        setTrends(result.data);
+        setServiceUnavailable(false);
+      } else {
+        setTrends([]);
+        setServiceUnavailable(result.state === 'unavailable');
       }
+      setLoading(false);
     }
     loadTrends();
   }, [filterType]);
@@ -72,6 +75,8 @@ export default function TrendDetectionDashboard() {
           <Loader2 className="w-6 h-6 animate-spin text-amber-500 mb-2" />
           Scanning social graphs for breakout velocities...
         </div>
+      ) : serviceUnavailable ? (
+        <PlatformServiceNotice feature="Trend detection" />
       ) : trends.length === 0 ? (
         <div className="py-24 text-center text-xs text-neutral-500 font-mono">
           No trend data yet. Ingest a snapshot via `/api/v1/analytics/trends/ingest` to see it here.
@@ -98,15 +103,13 @@ export default function TrendDetectionDashboard() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between">
+              {/* The source docs put a "Create Video" button here linking to
+                  /dashboard/generate — that studio page was never built, so
+                  linking to it would just 404. */}
+              <div className="pt-3 border-t border-neutral-800/80">
                 <span className="text-[10px] font-mono text-amber-400/90">
                   {trend.is_rising ? 'Breakout Phase (Early)' : 'Plateau Detected'}
                 </span>
-                <Link href={`/dashboard/generate?prompt=${encodeURIComponent(`Create a video using ${trend.title}`)}`}>
-                  <Button size="sm" className="bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-bold h-8">
-                    <Sparkles className="w-3 h-3 mr-1" /> Create Video
-                  </Button>
-                </Link>
               </div>
             </div>
           ))}

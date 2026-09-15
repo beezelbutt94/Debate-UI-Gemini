@@ -38,7 +38,10 @@ export async function GET(
   const res = NextResponse.redirect(authorizationUrl);
   res.cookies.set(stateCookieName(platform), state, {
     httpOnly: true,
-    secure: true,
+    // Browsers drop Secure cookies on plain http, which silently breaks the
+    // callback's CSRF check on http://localhost. Production is https, so
+    // this still sets Secure everywhere it matters.
+    secure: req.nextUrl.protocol === 'https:',
     sameSite: 'lax',
     maxAge: 600,
     path: '/',

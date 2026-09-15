@@ -12,8 +12,9 @@ jobs:
 
     strategy:
       matrix:
-        # Next.js 16 requires Node >=20.9.0 (see node_modules/next/package.json).
-        node-version: [20.x, 22.x]
+        # Not 20.x: @supabase/supabase-js declares `engines.node >= 22`, so a
+        # Node 20 job tests a dependency configuration the tree says is invalid.
+        node-version: [22.x, 24.x]
 
     steps:
     - uses: actions/checkout@v4

@@ -14,7 +14,9 @@ kombu==5.4.2
 stripe==10.12.0
 boto3==1.35.36
 requests==2.32.3
-anthropic==0.34.2
+# 1.x: 0.34.x constructs its HTTP client with an `httpx` kwarg that modern
+# httpx removed, so it raises TypeError on import against a current httpx.
+anthropic==1.6.0
 python-dotenv==1.0.1
 dnspython==2.6.1
 kubernetes==31.0.0

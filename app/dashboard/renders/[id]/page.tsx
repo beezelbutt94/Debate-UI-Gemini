@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { PlatformServiceNotice } from '@/components/PlatformServiceNotice';
+import { platformApiFetch } from '@/lib/platform-api';
 import { CheckCircle2, Clock, Download, Share2, AlertCircle, Sparkles, Copy, TrendingUp } from 'lucide-react';
 
 interface RenderJobStatus {
@@ -26,21 +28,25 @@ export default function RenderStatusPage() {
 
   const [job, setJob] = useState<RenderJobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
 
   const fetchStatus = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/v1/videos/${videoId}/status`);
-      if (!res.ok) throw new Error('Could not retrieve render status');
-      const data = await res.json();
-      setJob(data);
-      return data.status === 'completed' || data.status === 'failed';
-    } catch (err: any) {
-      setError(err.message);
+    const result = await platformApiFetch<RenderJobStatus>(`/api/v1/videos/${videoId}/status`);
+
+    if (result.state === 'unavailable') {
+      setServiceUnavailable(true);
       return true;
     }
+    if (result.state === 'error') {
+      setError(result.message);
+      return true;
+    }
+
+    setJob(result.data);
+    return result.data.status === 'completed' || result.data.status === 'failed';
   }, [videoId]);
 
   useEffect(() => {
@@ -84,13 +90,21 @@ export default function RenderStatusPage() {
     }
   };
 
+  if (serviceUnavailable) {
+    return (
+      <div className="max-w-xl mx-auto my-20 px-4">
+        <PlatformServiceNotice feature="Render progress" />
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="max-w-xl mx-auto my-20 p-6 bg-neutral-950 border border-red-900 rounded-xl text-center">
         <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
         <h2 className="text-lg font-bold text-white">Pipeline Execution Error</h2>
         <p className="text-xs text-neutral-400 mt-2">{error}</p>
-        <Button onClick={() => router.push('/dashboard')} className="mt-4 text-xs bg-neutral-800">
+        <Button onClick={() => router.push('/')} className="mt-4 text-xs bg-neutral-800">
           Return to Dashboard
         </Button>
       </div>
