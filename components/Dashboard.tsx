@@ -1,7 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CampaignLog, PlatformConnection, UserRow } from '@/lib/types';
+
+const OAUTH_MESSAGES: Record<string, string> = {
+  connected: 'Ad account connected.',
+  not_configured: "This platform isn't configured yet — try again once it's set up.",
+  state_mismatch: 'Connection attempt expired or was tampered with. Please try again.',
+  missing_code: 'The platform did not return an authorization code. Please try again.',
+  exchange_failed: 'Could not complete the connection. Please try again.',
+  store_failed: 'Connected, but saving the connection failed. Please try again.',
+  unauthenticated: 'Please sign in before connecting an ad account.',
+};
 
 const PLANS = [
   { id: 'starter', label: 'Starter', price: '€49/mo', credits: '50k views' },
@@ -31,6 +41,21 @@ export default function Dashboard({
   const [activeCredits, setActiveCredits] = useState(user.active_credits);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get('oauth');
+    if (oauthStatus) {
+      setMessage(OAUTH_MESSAGES[oauthStatus] ?? null);
+      params.delete('oauth');
+      params.delete('platform');
+      const query = params.toString();
+      window.history.replaceState({}, '', query ? `/?${query}` : '/');
+    }
+    // Only on mount: this reads the URL the page loaded with, not a
+    // navigable route param — nothing here should re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

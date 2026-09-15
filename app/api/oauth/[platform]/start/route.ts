@@ -24,7 +24,16 @@ export async function GET(
   const redirectUri = `${origin}/api/oauth/${platform}/callback`;
   const state = generateState();
 
-  const authorizationUrl = getOAuthProvider(platform).authorizationUrl({ state, redirectUri });
+  let authorizationUrl: string;
+  try {
+    authorizationUrl = getOAuthProvider(platform).authorizationUrl({ state, redirectUri });
+  } catch (err) {
+    // Missing TIKTOK_CLIENT_ID / GOOGLE_ADS_CLIENT_ID, etc. This is a
+    // deployment-configuration issue, not a user error — surface it as a
+    // redirect back to the dashboard rather than an unhandled 500.
+    console.error(`${platform} OAuth not configured:`, (err as Error).message);
+    return NextResponse.redirect(new URL(`/?oauth=not_configured&platform=${platform}`, req.url));
+  }
 
   const res = NextResponse.redirect(authorizationUrl);
   res.cookies.set(stateCookieName(platform), state, {
