@@ -160,3 +160,80 @@ connected and answering (11/11), and configured but down (8/8).
 | `system_init.py` | Logged "Schema sync encountered a warning" and started anyway, so every query against a missing table 500'd at request time. | Exits 1. Stopping the rollout is the job. |
 | `domains.py` status | A failed cluster call returned `ssl_ready: false`, indistinguishable from "still issuing" — customers waited on a certificate nobody was issuing. | `ssl_state` of ready / provisioning / not_provisioned / unknown, plus `ssl_error`. The page stops polling and drops the spinner for the terminal states. |
 | `domains.py` unbind | Returned `"success"` even when cluster teardown failed, leaving an Ingress and Certificate still serving the old domain. | Returns `"partial"` with the error; logs `ORPHANED CLUSTER RESOURCES`. |
+
+---
+
+# Final verification pass
+
+A from-scratch re-verification of everything, which turned up one more
+issue — the most serious one found in the whole project.
+
+## Critical: OAuth refresh tokens were readable by anyone
+
+Supabase's own security advisor flagged `get_platform_refresh_token` and
+`store_platform_refresh_token` as executable by `anon`, despite the
+`REVOKE` statements at the bottom of `0002_platform_connections.sql`.
+Checking `pg_proc.proacl` directly confirmed it:
+
+```
+get_platform_refresh_token   anon=true   authenticated=true
+fail_campaign_and_refund     anon=false  authenticated=false   <- correct shape
+```
+
+Confirmed exploitable against the live project by calling the REST RPC
+endpoint with the **public anon key** — the one that ships in every
+browser bundle:
+
+```
+POST /rest/v1/rpc/get_platform_refresh_token   ->  HTTP 200
+```
+
+200, not 403. It returned `null` only because that user id had no
+connection row; with a real id it returns the **decrypted Vault secret**.
+So any visitor could have enumerated user ids and harvested every
+creator's TikTok / Google Ads refresh token — full takeover of their ad
+accounts. `store_platform_refresh_token` was the write-side equivalent:
+repoint any creator's connection at an attacker's account.
+
+The cause is Supabase's default privileges granting `EXECUTE` on public
+functions to `anon`/`authenticated`. A bare `REVOKE` in the creating
+migration does not survive that, which is why the newer
+`fail_campaign_and_refund` (created after, in its own migration) had the
+correct ACL while the 0002 pair did not.
+
+`0004_lock_down_definer_functions.sql` fixes the four existing functions
+*and* removes the default-privilege grant, so the next migration doesn't
+silently reintroduce the hole.
+
+After: the same call returns **HTTP 401**, and the advisor drops from 8
+findings to 1 — `consume_credits` callable by `authenticated`, which is
+intentional and required (it derives the caller from `auth.uid()`).
+
+Revoking `EXECUTE` on `handle_new_user` risked breaking the signup
+trigger, so that was tested rather than assumed: 5/5 — the trigger still
+creates the `users` row, refunds still restore the balance, the negative
+balance CHECK still fires, and deletes still cascade.
+
+## Everything re-checked, from clean
+
+| Check | Result |
+|---|---|
+| `rm -rf node_modules && npm ci` | 141 packages, **0 vulnerabilities** |
+| `npm run typecheck` | clean |
+| `npm run build` | clean, 13 routes |
+| `python -m compileall services/api/app` | clean |
+| FastAPI boot (no Redis, no `ANTHROPIC_API_KEY`) | 43 OpenAPI paths, `/healthz` ok |
+| Rate-limited route with Redis down | **401**, `x-ratelimit-mode: local-fallback` — enforcing, not 500, not open |
+| Rate limiter suite | 8/8 |
+| Live DB integrity + refund + trigger | 5/5 |
+| Supabase security advisor | 8 findings → 1 (intentional) |
+| Browser, backend absent | 15/15 |
+| Landing page / tenant fallback / 404 | render clean, no console errors |
+| Secrets in tracked files | none; every `k8s/`+`argocd/` secret is a `REPLACE_WITH_*` placeholder |
+| Pre-existing `leads` table | 3 rows, untouched |
+
+One note on process: a stale `next dev` from an earlier test was still
+holding port 3000 with `INTERNAL_API_URL` set, which made the first
+browser run look like a regression (8/15). It wasn't — the pages were
+correctly reporting "configured but unreachable" against a stub that had
+been killed. Re-run on a clean server: 15/15.
