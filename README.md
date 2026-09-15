@@ -23,9 +23,11 @@ platform's own auction, spending the *creator's own* connected ad account.
    in that order).
 4. `npm run dev`
 
-A live test-mode Supabase project (`viralsync`, region eu-west-1) already
-has both migrations applied — ask for its URL/anon key if you don't have
-them, rather than creating a second one.
+A live test-mode Supabase project (`unseen-reels`, region eu-central-1)
+already has both migrations applied — ask for its URL/anon key if you
+don't have them, rather than creating a second one. (An earlier `viralsync`
+project in eu-west-1 also has them applied and still exists, but this repo
+has since standardized on `unseen-reels`.)
 
 ## Architecture
 
