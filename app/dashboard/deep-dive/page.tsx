@@ -1,29 +1,25 @@
 import { auth } from '@clerk/nextjs/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { AnalyzerForm } from '@/components/AnalyzerForm';
+import { DeepDiveForm } from '@/components/DeepDiveForm';
 import { DashboardNav } from '@/components/DashboardNav';
 import type { AuditReportRow, SubscriptionRow } from '@/lib/types';
 
-export default async function AnalyzePage() {
+export default async function DeepDivePage() {
   const { userId } = await auth();
   const admin = createSupabaseAdminClient();
 
-  // Reads use the service-role client with an explicit user_id filter
-  // rather than the RLS-scoped client in lib/supabase/server.ts: RLS here
-  // depends on Clerk being wired up as a Supabase "Third Party Auth"
-  // provider in the Supabase dashboard (a manual, one-time step — see
-  // README), and this page needs to work correctly before that step is
-  // done. The explicit .eq('user_id', userId) below is scoped from a
-  // Clerk-verified server-side userId, so it's equivalently safe.
+  // Same rationale as app/dashboard/analyze/page.tsx: service-role reads
+  // with an explicit user_id filter, not the RLS-scoped client, since RLS
+  // here depends on a manual Clerk<->Supabase dashboard step (see README).
   const [{ data: subscription }, { data: reports }] = await Promise.all([
     admin.from('subscriptions').select('*').eq('user_id', userId!).single(),
     admin
       .from('audit_reports')
       .select('*')
       .eq('user_id', userId!)
-      .eq('source_type', 'url')
+      .eq('source_type', 'account')
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(10),
   ]);
 
   const sub = subscription as SubscriptionRow | null;
@@ -35,9 +31,9 @@ export default async function AnalyzePage() {
       <div className="border-b border-neutral-800 pb-6 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest">
-            Viral Gap Analyzer
+            Creator Account Deep-Dive
           </span>
-          <h1 className="text-2xl font-black mt-1">What&apos;s missing for virality?</h1>
+          <h1 className="text-2xl font-black mt-1">Where is your content drifting from what works?</h1>
         </div>
         {sub && (
           <span className="text-xs font-mono text-neutral-500">
@@ -47,12 +43,12 @@ export default async function AnalyzePage() {
         )}
       </div>
 
-      <AnalyzerForm />
+      <DeepDiveForm />
 
       {pastReports.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-500">
-            Past analyses
+            Past deep-dives
           </h2>
           <ul className="space-y-2">
             {pastReports.map((r) => (

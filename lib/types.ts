@@ -53,7 +53,17 @@ export interface ViralGapAnalysis {
   source_metrics: Record<string, unknown>;
 }
 
-export interface AuditReportRow {
+export interface GrowthBlueprint {
+  thematic_consistency: { score: number; notes: string };
+  view_to_follower_ratio: { value: number | null; assessment: string };
+  posting_cadence: { avg_days_between_posts: number | null; assessment: string };
+  theme_correction: string[];
+  view_maximization_tactics: string[];
+  posting_blindspots: string[];
+  per_platform_notes: Record<string, string>;
+}
+
+export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint> {
   id: string;
   user_id: string;
   creator_profile_id: string | null;
@@ -61,7 +71,24 @@ export interface AuditReportRow {
   source_url: string | null;
   platform: Platform | null;
   viral_score: number | null;
-  analysis: ViralGapAnalysis;
+  analysis: TAnalysis;
   timeline_recommendations: TimelineRecommendation[];
   created_at: string;
+}
+
+export interface CreatorHandles {
+  youtube?: string;
+  tiktok?: string;
+  instagram?: string;
+}
+
+export interface CreatorProfileRow {
+  id: string;
+  user_id: string;
+  niche: string | null;
+  handles: CreatorHandles;
+  connected_metrics: Record<string, unknown>;
+  mem0_agent_key: string | null;
+  created_at: string;
+  updated_at: string;
 }

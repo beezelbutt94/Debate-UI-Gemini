@@ -21,9 +21,11 @@ record if you're archaeology-minded.
 - Anthropic Claude (Messages API, tool-use/structured output) for the
   actual audit synthesis
 
-## What's built: the Viral Gap Analyzer
+## What's built
 
-The one feature in this pass that's real end to end, not a stub:
+Two features, real end to end, not stubs:
+
+### Viral Gap Analyzer
 
 1. `app/dashboard/analyze/page.tsx` + `components/AnalyzerForm.tsx` — paste
    a URL, see the score, hook evaluation, retention prediction, pacing
@@ -44,19 +46,51 @@ The one feature in this pass that's real end to end, not a stub:
    - **Refunds** the quota unit via `refund_analysis_quota()` if any step
      after the quota check fails — a scrape or LLM error should never
      permanently cost a user one of their monthly analyses.
-3. Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
-   Checkout session against real test-mode prices (Creator/Pro/Studio,
-   created via the Stripe MCP connector under the "Peshets sandbox"
-   account); `app/api/stripe/webhook/route.ts` verifies the signature,
-   dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
-   tier + quota limit into `subscriptions`.
-4. Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
-   `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
-   requests to `/sign-in` and returning a JSON 401 for API requests.
-   `app/api/webhooks/clerk/route.ts` syncs `user.created` /
-   `user.updated` / `user.deleted` into the `users` table and creates a
-   default `subscriptions` row (Creator tier, 10 analyses/month) on
-   signup.
+### Creator Account Deep-Dive
+
+1. `app/dashboard/deep-dive/page.tsx` + `components/DeepDiveForm.tsx` —
+   enter a niche and one or more platform handles (YouTube, TikTok,
+   Instagram), see a growth blueprint: thematic consistency, view-to-
+   follower ratio, posting cadence, theme correction, view-maximization
+   tactics, posting blindspots.
+2. `app/api/creators/deep-dive/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the Analyzer above.
+   - **YouTube**: real, official YouTube Data API v3 calls
+     (`lib/youtube.ts` — `channels.list`, `playlistItems.list`,
+     `videos.list`), computing actual posting cadence and view-to-
+     subscriber ratio from the last 15 uploads. No scraping.
+   - **TikTok/Instagram**: Tavily extraction of the public profile page
+     (same `lib/tavily.ts` as the Analyzer) — best-effort, since neither
+     platform has an official, self-serve API a third-party app can call
+     with just an API key (the same real constraint ViralSync's own
+     TikTok/Google Ads OAuth flow hit, documented honestly there rather
+     than faked).
+   - One platform failing (bad handle, rate limit) doesn't sink a
+     multi-platform request — the failure is recorded as data and the LLM
+     is told what's missing and why, rather than the whole call 500ing.
+   - Upserts `creators_profiles` (handles, niche, a `connected_metrics`
+     cache of everything fetched), then Claude (`lib/anthropic.ts`,
+     `generateGrowthBlueprint`) synthesizes the blueprint from the real
+     data — grounded explicitly: the system prompt forbids inventing a
+     metric that wasn't actually provided.
+   - Writes to `audit_reports` (`source_type: 'account'`) and refunds the
+     quota unit on any failure, same as the Analyzer.
+
+### Shared platform pieces
+
+- Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
+  Checkout session against real test-mode prices (Creator/Pro/Studio,
+  created via the Stripe MCP connector under the "Peshets sandbox"
+  account); `app/api/stripe/webhook/route.ts` verifies the signature,
+  dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
+  tier + quota limit into `subscriptions`.
+- Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
+  `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
+  requests to `/sign-in` and returning a JSON 401 for API requests.
+  `app/api/webhooks/clerk/route.ts` syncs `user.created` /
+  `user.updated` / `user.deleted` into the `users` table and creates a
+  default `subscriptions` row (Creator tier, 10 analyses/month) on
+  signup.
 
 See `docs/DEBUG_RUN.md`'s "ViralEngine (current app)" section for the real
 issues this surfaced and how each was fixed — including two genuine
@@ -65,19 +99,19 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Creator Account Deep-Dive, Multimodal Video Upload Diagnostic, Script &
-Storyboard Generator, Creator Tool Suite Hub, Competitor Espionage Engine,
-and the Scheduling/Publishing Planner. See
-**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
-(already created, see below) and API routes each one needs, and which
-already-verified API contracts (vidIQ, Metricool, Cloudinary, Mem0,
-OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs) to build against.
+Multimodal Video Upload Diagnostic, Script & Storyboard Generator,
+Creator Tool Suite Hub, Competitor Espionage Engine, and the
+Scheduling/Publishing Planner. See **`docs/VIRALENGINE_ROADMAP.md`** — it
+names the exact schema tables (already created, see below) and API routes
+each one needs, and which already-verified API contracts (Metricool,
+Cloudinary, Mem0, OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs)
+to build against.
 
 ## Local setup
 
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
-   Stripe, Anthropic, and Tavily keys.
+   Stripe, Anthropic, Tavily, and YouTube Data API v3 keys.
 3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
    project (`supabase db push`, or paste into the SQL editor). A live
    project already has it applied — project ref `dcesehxmssqsszzasott`
@@ -107,9 +141,9 @@ once step 4 above is done):
 - `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
 - `creators_profiles` — niche, per-platform handles, cached connected
   metrics, Mem0 agent key.
-- `audit_reports` — every analysis result (Gap Analyzer, and eventually
-  Deep-Dive and Upload Diagnostic), JSONB payload + viral score +
-  timestamped recommendations.
+- `audit_reports` — every analysis result (Gap Analyzer and Deep-Dive now,
+  Upload Diagnostic eventually), JSONB payload + viral score + timestamped
+  recommendations.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.
 - `subscriptions` — Stripe plan tier + atomic quota usage counters.

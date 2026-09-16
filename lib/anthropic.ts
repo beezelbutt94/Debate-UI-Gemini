@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ViralGapAnalysis, TimelineRecommendation } from '@/lib/types';
+import type { ViralGapAnalysis, TimelineRecommendation, GrowthBlueprint } from '@/lib/types';
 
 let cached: Anthropic | null = null;
 
@@ -169,5 +169,147 @@ export async function generateViralGapAnalysis(params: {
       source_metrics: {},
     },
     timeline_recommendations: input.timeline_recommendations,
+  };
+}
+
+const BLUEPRINT_TOOL_NAME = 'submit_growth_blueprint';
+
+const BLUEPRINT_TOOL: Anthropic.Tool = {
+  name: BLUEPRINT_TOOL_NAME,
+  description:
+    'Submit the structured Creator Account Deep-Dive growth blueprint: theme correction, ' +
+    'view maximization tactics, and posting blindspots, grounded in the real per-platform ' +
+    'metrics provided.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      viral_score: {
+        type: 'number',
+        description: '0-100 overall account health/growth-readiness score.',
+      },
+      thematic_consistency: {
+        type: 'object',
+        properties: {
+          score: { type: 'number', description: '0-100.' },
+          notes: { type: 'string' },
+        },
+        required: ['score', 'notes'],
+      },
+      view_to_follower_ratio: {
+        type: 'object',
+        properties: {
+          value: {
+            type: ['number', 'null'],
+            description: 'Copy the numeric avgViewToSubscriberRatio provided, or null if none was given.',
+          },
+          assessment: { type: 'string' },
+        },
+        required: ['value', 'assessment'],
+      },
+      posting_cadence: {
+        type: 'object',
+        properties: {
+          avg_days_between_posts: {
+            type: ['number', 'null'],
+            description: 'Copy the numeric avgDaysBetweenUploads provided, or null if none was given.',
+          },
+          assessment: { type: 'string' },
+        },
+        required: ['avg_days_between_posts', 'assessment'],
+      },
+      theme_correction: { type: 'array', items: { type: 'string' } },
+      view_maximization_tactics: { type: 'array', items: { type: 'string' } },
+      posting_blindspots: { type: 'array', items: { type: 'string' } },
+      per_platform_notes: {
+        type: 'object',
+        description: 'One free-text note per platform actually analyzed, keyed by platform name.',
+        additionalProperties: { type: 'string' },
+      },
+    },
+    required: [
+      'viral_score',
+      'thematic_consistency',
+      'view_to_follower_ratio',
+      'posting_cadence',
+      'theme_correction',
+      'view_maximization_tactics',
+      'posting_blindspots',
+      'per_platform_notes',
+    ],
+  },
+};
+
+const BLUEPRINT_SYSTEM_PROMPT = `You are ViralEngine's Creator Account Deep-Dive strategist.
+You are given real, per-platform data gathered about a creator's account(s): for YouTube, official
+YouTube Data API v3 numbers (subscriber count, recent upload view/like/comment counts, computed
+posting cadence and view-to-subscriber ratio); for TikTok/Instagram, extracted public profile page
+content (noisy HTML-derived text, not clean API data — say so in per_platform_notes if it limits
+what you can conclude for that platform).
+
+Ground every number you reference in the data actually given to you — never invent a metric that
+wasn't provided. Where a metric is null because it genuinely wasn't available, say so plainly in
+the relevant assessment/notes field rather than fabricating a value.
+
+Produce a growth blueprint: theme correction (where their content strays from their stated niche),
+view maximization tactics (concrete, prioritized), and posting blindspots (gaps in cadence, format,
+or platform coverage). Call submit_growth_blueprint exactly once.`;
+
+export interface BlueprintResult {
+  viral_score: number;
+  analysis: GrowthBlueprint;
+}
+
+export async function generateGrowthBlueprint(params: {
+  niche: string | null;
+  platformData: Record<string, unknown>;
+}): Promise<BlueprintResult> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 4096,
+    system: BLUEPRINT_SYSTEM_PROMPT,
+    tools: [BLUEPRINT_TOOL],
+    tool_choice: { type: 'tool', name: BLUEPRINT_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Creator's stated niche: ${params.niche ?? '(not provided)'}\n\n` +
+          `Per-platform data:\n${JSON.stringify(params.platformData, null, 2).slice(0, 16_000)}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === BLUEPRINT_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected growth blueprint.');
+  }
+
+  const input = toolUse.input as {
+    viral_score: number;
+    thematic_consistency: GrowthBlueprint['thematic_consistency'];
+    view_to_follower_ratio: GrowthBlueprint['view_to_follower_ratio'];
+    posting_cadence: GrowthBlueprint['posting_cadence'];
+    theme_correction: string[];
+    view_maximization_tactics: string[];
+    posting_blindspots: string[];
+    per_platform_notes: Record<string, string>;
+  };
+
+  return {
+    viral_score: input.viral_score,
+    analysis: {
+      thematic_consistency: input.thematic_consistency,
+      view_to_follower_ratio: input.view_to_follower_ratio,
+      posting_cadence: input.posting_cadence,
+      theme_correction: input.theme_correction,
+      view_maximization_tactics: input.view_maximization_tactics,
+      posting_blindspots: input.posting_blindspots,
+      per_platform_notes: input.per_platform_notes,
+    },
   };
 }

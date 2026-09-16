@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { extractUrlContent, TavilyRateLimitError } from '@/lib/tavily';
 import { generateViralGapAnalysis } from '@/lib/anthropic';
 import { detectPlatform } from '@/lib/platform';
-import type { AuditReportRow } from '@/lib/types';
+import type { AuditReportRow, ViralGapAnalysis } from '@/lib/types';
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Could not save the analysis report.' }, { status: 500 });
     }
 
-    return NextResponse.json({ report: report as AuditReportRow }, { status: 200 });
+    return NextResponse.json({ report: report as AuditReportRow<ViralGapAnalysis> }, { status: 200 });
   } catch (err) {
     // Every failure path below burned a quota unit for nothing (a
     // scrape/LLM error, not a user error) -- refund it rather than

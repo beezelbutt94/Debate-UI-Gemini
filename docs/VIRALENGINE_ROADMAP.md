@@ -13,37 +13,38 @@ whole spec's schema up front, not just the one shipped feature.
 | # | Feature | Status |
 |---|---|---|
 | 1 | Viral Gap Analyzer (URL Ingestion) | **Shipped** — see README.md |
-| 2 | Creator Account Deep-Dive | Not started |
+| 2 | Creator Account Deep-Dive | **Shipped** — see README.md |
 | 3 | Multimodal Video Upload Diagnostic | Not started |
 | 4 | Algorithmic Script & Storyboard Generator | Not started |
 | 5 | Creator Tool Suite Hub | Not started |
 | 6 | Competitor Espionage & Gap Engine | Not started |
 | 7 | Algorithmic Scheduling & Publishing Planner | Not started |
 
-## 2. Creator Account Deep-Dive
+## 2. Creator Account Deep-Dive — shipped
 
-- **Route**: `app/api/creators/deep-dive/route.ts` (new).
-- **Tables**: `creators_profiles` (write `handles`, `niche`,
-  `connected_metrics`), `audit_reports` (write with `source_type:
-  'account'`, `source_url: null`).
-- **Real API contracts available in this workspace**: the vidIQ MCP
-  connector exposes `vidiq_channel_stats`, `vidiq_channel_analytics`,
-  `vidiq_channel_performance_trends`, `vidiq_subscriber_insights`, and
-  `vidiq_similar_channels` — all verified live and well-suited to "posting
-  patterns, view-to-follower ratios, engagement drops." Metricool's
-  `getAnalyticsDataByMetrics` + `getBrandSettings` cover cross-platform
-  posting cadence. Neither vidIQ nor Metricool has a public, self-serve
-  REST API a deployed server can call with just an API key the way Tavily
-  does — both are reachable from *this* session via their MCP connectors,
-  but the deployed app itself would need whatever direct API access each
-  vendor actually sells (vidIQ's public API is limited; Metricool's is
-  account-linked). Confirm actual access before assuming a
-  fetch()-with-API-key implementation is possible; don't hallucinate an
-  endpoint the way the original spec's "vidIQ/Metricool benchmark" bullet
-  implies is trivial.
-- **Gotcha already found**: the Viral Gap Analyzer's `lib/anthropic.ts`
-  pattern (tool-use for forced structured output) is directly reusable
-  here — copy the tool-schema approach, not the specific schema.
+Built with **YouTube Data API v3** (`lib/youtube.ts`) for the YouTube half
+and **Tavily extraction** (`lib/tavily.ts`, reused from the Analyzer) for
+TikTok/Instagram — not vidIQ/Metricool. Investigating those two first
+surfaced the actual constraint worth recording for the rest of this
+roadmap: neither has a public, self-serve REST API a deployed third-party
+server can call with just an API key (vidIQ's public API is limited;
+Metricool's is account-linked) — both are only reachable from *this
+session* via their MCP connectors, which isn't the same thing as the
+*deployed app* being able to call them. YouTube's official API is
+self-serve, well-documented, and zero-hallucination-risk, so it's the real
+data source for the platform the spec cares most about; TikTok/Instagram
+get the same honest, best-effort treatment the Analyzer already gives them
+(and that ViralSync's own TikTok/Google Ads OAuth flow gave that same
+constraint, one product ago).
+
+Reused directly from the Analyzer: the quota consume/refund pattern, the
+`lib/anthropic.ts` tool-use-for-structured-output approach (new schema:
+`generateGrowthBlueprint`/`GrowthBlueprint`), and the service-role-client-
+with-explicit-filter pattern for reads (see `app/dashboard/deep-dive/page.tsx`).
+One addition worth reusing forward: a failed platform fetch is recorded as
+`{error: message}` *inside* the data handed to Claude rather than failing
+the whole request — a bad TikTok handle shouldn't block a YouTube result
+when both were requested together.
 
 ## 3. Multimodal Video Upload Diagnostic
 
