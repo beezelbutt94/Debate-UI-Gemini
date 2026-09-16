@@ -37,7 +37,7 @@ jobs:
           # These are never used at runtime in CI — they only satisfy static
           # key-presence checks during `next build`.
           environment:
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder00000000000000000000000000000
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dGVzdC5jbGVyay5hY2NvdW50cy5kZXYk
             NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
             NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
             NEXT_PUBLIC_APP_URL: http://localhost:3000
