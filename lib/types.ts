@@ -164,3 +164,23 @@ export interface CompetitorGapAnalysis {
   audience_sentiment_gaps: string[];
   untapped_keyword_clusters: string[]; // grounded in real Tavily search results
 }
+
+export interface ScheduledPostRow {
+  id: string;
+  user_id: string;
+  platform: Platform;
+  publish_at: string;
+  media_urls: string[];
+  caption: string | null;
+  status: 'draft' | 'scheduled' | 'published' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarSlot {
+  day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  time_local: string; // "HH:MM", 24h
+  platform: Platform;
+  topic_suggestion: string;
+  reasoning: string; // grounded in real search results / this creator's own cadence data
+}

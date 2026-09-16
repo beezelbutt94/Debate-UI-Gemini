@@ -1,12 +1,17 @@
 # ViralEngine roadmap
 
-What's built (Viral Gap Analyzer — see README.md) vs. what's left of the
-original 7-feature spec. Keep this file in sync with actual progress:
-update a row the moment its feature ships, don't batch it.
+All 7 features of the original spec are shipped — see README.md for what
+each one does. This file is now a record of how each one actually got
+built vs. what the roadmap originally guessed before it existed, kept for
+whoever touches this code next: several early guesses here turned out
+wrong once actually investigated (vidIQ/Metricool's real API access,
+Semrush/Ahrefs's domain-vs-handle mismatch), and the corrected reasoning
+is worth more than the original guess. Read `docs/DEBUG_RUN.md` for the
+concrete bugs/fixes each feature surfaced.
 
 Every table named below already exists —
 `supabase/migrations/0001_viralengine_init.sql` was written to cover the
-whole spec's schema up front, not just the one shipped feature.
+whole spec's schema up front, not just the one feature it started with.
 
 ## Status
 
@@ -18,7 +23,28 @@ whole spec's schema up front, not just the one shipped feature.
 | 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
 | 5 | Creator Tool Suite Hub | **Shipped** — see README.md |
 | 6 | Competitor Espionage & Gap Engine | **Shipped** — see README.md |
-| 7 | Algorithmic Scheduling & Publishing Planner | Not started |
+| 7 | Algorithmic Scheduling & Publishing Planner | **Shipped** — see README.md |
+
+## What would come after this spec, if it kept going
+
+Not part of the original 7, but the honest next layer given what shipped:
+
+1. **Per-user OAuth connections** to Descript, OpusClip, HyperFrames,
+   Canva, and Metricool — the single biggest category of "not real" left
+   anywhere in this app. Each is its own OAuth app registration, consent
+   screen, and token-storage problem (mirroring what `lib/oauth/` used to
+   handle for ViralSync's TikTok/Google Ads flow, before the pivot).
+   Unlocks: the Tool Suite Hub actually driving a tool instead of linking
+   to it, and per-user audience-timezone data for the Scheduling Planner
+   instead of server-clock-relative suggestions.
+2. **A publish-time trigger** (Vercel Cron or a Supabase scheduled
+   function) that turns a `scheduled_posts` row into an actual post via
+   each platform's publishing API — needs (1) to exist first.
+3. **Per-user timezone storage.** `nextOccurrence()` in
+   `app/api/schedule/generate/route.ts` resolves against the server's own
+   clock today; a `timezone` column on `users` (populated from the
+   browser at signup) would let the Scheduling Planner compute real local
+   times per creator instead.
 
 ## 2. Creator Account Deep-Dive — shipped
 
@@ -192,15 +218,24 @@ directly into `supabase/migrations/0001_viralengine_init.sql`'s `create
 table` statement as the source of truth for a fresh install, matching
 how every other schema change this session has been handled.
 
-## 7. Algorithmic Scheduling & Publishing Planner
+## 7. Algorithmic Scheduling & Publishing Planner — shipped
 
-- **Route**: `app/api/schedule/route.ts` (new, plain CRUD).
-- **Table**: `scheduled_posts` — already has `publish_at`, `media_urls`,
-  `platform`, `status` (`draft`/`scheduled`/`published`/`failed`).
-- **Real API contract**: Metricool MCP's `getBestTimeToPostByNetwork`,
-  `createScheduledPost` / `createScheduledPostForReview`,
-  `getScheduledPosts` are live and directly match this feature's spec.
-  Actual publish-time execution (turning a `scheduled_posts` row into a
-  live post) needs a cron/queue trigger this Next.js app doesn't have
-  yet — Vercel Cron or a Supabase scheduled function are the two
-  options; neither is wired up.
+Metricool's `getBestTimeToPostByNetwork` (the tool this plan originally
+pointed at) answers the spec's "audience timezone activity" question
+directly *from this session's MCP connector* — but, same as vidIQ and
+Metricool's other endpoints back in feature 2, that's account-linked
+access, not a self-serve API key a deployed third-party server can call
+for an arbitrary end user. Rather than guess at an unverified direct
+integration, this used the same real substitute Deep-Dive and Competitor
+Espionage already established: `lib/tavily.ts`'s `searchTopics()` for
+real current best-time-to-post research, blended with the creator's own
+actual cadence data (via `lib/digest.ts`, now used by three features).
+
+Plain CRUD (`app/api/schedule/route.ts`, `app/api/schedule/[id]/route.ts`)
+came together exactly as planned — no surprises, no new packages. The one
+piece worth flagging for whoever builds feature set (1) in "what would
+come after this spec" above: `nextOccurrence()` computes real calendar
+math (next occurrence of a weekday + time within 7 days) but has nowhere
+to read a creator's actual timezone from, since that column doesn't
+exist yet — documented as a known limitation in README.md rather than
+quietly assumed away.

@@ -8,6 +8,7 @@ import type {
   ScriptScene,
   SuiteTool,
   CompetitorGapAnalysis,
+  CalendarSlot,
 } from '@/lib/types';
 
 let cached: Anthropic | null = null;
@@ -785,4 +786,89 @@ export async function generateCompetitorGapAnalysis(params: {
   }
 
   return toolUse.input as Omit<CompetitorGapAnalysis, 'competitors'>;
+}
+
+const CALENDAR_TOOL_NAME = 'submit_weekly_calendar';
+
+const CALENDAR_TOOL: Anthropic.Tool = {
+  name: CALENDAR_TOOL_NAME,
+  description: 'Submit 5-10 suggested posting slots for the coming week, spread across platforms and days.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      slots: {
+        type: 'array',
+        minItems: 5,
+        maxItems: 10,
+        items: {
+          type: 'object',
+          properties: {
+            day_of_week: {
+              type: 'string',
+              enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+            },
+            time_local: { type: 'string', description: '24h "HH:MM", grounded in the search results provided.' },
+            platform: { type: 'string', enum: ['tiktok', 'youtube_shorts', 'facebook_reels'] },
+            topic_suggestion: { type: 'string' },
+            reasoning: {
+              type: 'string',
+              description: 'Must cite the specific search result or cadence-data point that justifies this slot.',
+            },
+          },
+          required: ['day_of_week', 'time_local', 'platform', 'topic_suggestion', 'reasoning'],
+        },
+      },
+    },
+    required: ['slots'],
+  },
+};
+
+const CALENDAR_SYSTEM_PROMPT = `You are ViralEngine's Algorithmic Scheduling & Publishing Planner.
+You are given real current search results about optimal posting times for short-form video
+platforms, and (when available) a digest of this creator's own actual posting cadence from their
+past ViralEngine reports.
+
+Real per-user audience-timezone data isn't available in this deployment (that would need each
+creator's own Metricool account connected, which isn't built yet) -- so ground every suggested time
+in the search results you were actually given, not a guessed "best practice" you weren't shown.
+Where the creator's own cadence data is available, don't suggest a schedule wildly out of step with
+how often they actually post.
+
+Spread the 5-10 slots across multiple platforms and multiple days -- don't cluster everything on
+one day or one platform unless the data actually supports that.
+
+Call submit_weekly_calendar exactly once.`;
+
+export async function generateWeeklyCalendar(params: {
+  searchDigest: string;
+  ownCadenceDigest: string;
+}): Promise<CalendarSlot[]> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 2048,
+    system: CALENDAR_SYSTEM_PROMPT,
+    tools: [CALENDAR_TOOL],
+    tool_choice: { type: 'tool', name: CALENDAR_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Best-time-to-post search results:\n${params.searchDigest}\n\n` +
+          `This creator's own posting cadence:\n${params.ownCadenceDigest || '(no prior data)'}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === CALENDAR_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected weekly calendar.');
+  }
+
+  const input = toolUse.input as { slots: CalendarSlot[] };
+  return input.slots;
 }
