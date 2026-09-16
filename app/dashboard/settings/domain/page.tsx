@@ -93,7 +93,10 @@ export default function WorkspaceDomainSettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetchDomainStatus();
+    async function load() {
+      await fetchDomainStatus();
+    }
+    void load();
   }, [fetchDomainStatus]);
 
   useEffect(() => {
