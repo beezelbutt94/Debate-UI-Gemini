@@ -1,10 +1,16 @@
 import type { OAuthProvider, TokenExchangeResult } from './types';
 
-const ADWORDS_SCOPE = 'https://www.googleapis.com/auth/adwords';
+// Upload-only. youtube.upload grants insert on the creator's own channel
+// and nothing else -- deliberately narrower than the full `youtube` scope,
+// which would also allow reading and deleting their existing videos.
+const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
 
 /**
- * Google Ads API OAuth2 (standard web server flow), scoped to the Ads API:
- * https://developers.google.com/google-ads/api/docs/oauth/overview
+ * Google OAuth2 (standard web server flow), scoped to YouTube uploads:
+ * https://developers.google.com/youtube/v3/guides/uploading_a_video
+ *
+ * Note the app must pass Google's OAuth verification for this scope before
+ * it works outside a test-user list.
  *
  * `access_type=offline` + `prompt=consent` is required to get a refresh
  * token back on every authorization, not just the first one.
@@ -12,10 +18,10 @@ const ADWORDS_SCOPE = 'https://www.googleapis.com/auth/adwords';
 export const googleProvider: OAuthProvider = {
   authorizationUrl({ state, redirectUri }) {
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    url.searchParams.set('client_id', requireEnv('GOOGLE_ADS_CLIENT_ID'));
+    url.searchParams.set('client_id', requireEnv('GOOGLE_CLIENT_ID'));
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('response_type', 'code');
-    url.searchParams.set('scope', ADWORDS_SCOPE);
+    url.searchParams.set('scope', YOUTUBE_UPLOAD_SCOPE);
     url.searchParams.set('access_type', 'offline');
     url.searchParams.set('prompt', 'consent');
     url.searchParams.set('state', state);
@@ -27,8 +33,8 @@ export const googleProvider: OAuthProvider = {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: requireEnv('GOOGLE_ADS_CLIENT_ID'),
-        client_secret: requireEnv('GOOGLE_ADS_CLIENT_SECRET'),
+        client_id: requireEnv('GOOGLE_CLIENT_ID'),
+        client_secret: requireEnv('GOOGLE_CLIENT_SECRET'),
         code,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
@@ -47,35 +53,31 @@ export const googleProvider: OAuthProvider = {
       );
     }
 
-    // Discovering which Ads customer_id(s) this grant covers requires a
-    // separate call to Google Ads API's ListAccessibleCustomers, which
-    // itself requires an approved GOOGLE_ADS_DEVELOPER_TOKEN. Left null
-    // until that's configured; the connection still works for auth purposes.
-    let externalAccountId: string | null = null;
-    if (process.env.GOOGLE_ADS_DEVELOPER_TOKEN) {
-      externalAccountId = await tryListAccessibleCustomer(body.access_token);
-    }
+    // Which channel this grant covers. Unlike the Ads equivalent this needs
+    // no extra developer token -- the upload scope is enough to read the
+    // authorizing user's own channel.
+    const externalAccountId = await tryGetChannelId(body.access_token);
 
     return {
       refreshToken: body.refresh_token,
       externalAccountId,
-      scope: body.scope ?? ADWORDS_SCOPE,
+      scope: body.scope ?? YOUTUBE_UPLOAD_SCOPE,
     };
   },
 };
 
-async function tryListAccessibleCustomer(accessToken: string): Promise<string | null> {
+async function tryGetChannelId(accessToken: string): Promise<string | null> {
+  // Best-effort: the connection is valid and storable without it, so a
+  // failure here must not fail the whole OAuth callback. It is a display
+  // convenience, not a credential.
   try {
-    const res = await fetch('https://googleads.googleapis.com/v18/customers:listAccessibleCustomers', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'developer-token': requireEnv('GOOGLE_ADS_DEVELOPER_TOKEN'),
-      },
-    });
+    const res = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
     if (!res.ok) return null;
     const body = await res.json();
-    const first: string | undefined = body?.resourceNames?.[0];
-    return first ? first.replace('customers/', '') : null;
+    return body?.items?.[0]?.id ?? null;
   } catch {
     return null;
   }

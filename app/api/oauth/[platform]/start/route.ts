@@ -28,7 +28,7 @@ export async function GET(
   try {
     authorizationUrl = getOAuthProvider(platform).authorizationUrl({ state, redirectUri });
   } catch (err) {
-    // Missing TIKTOK_CLIENT_ID / GOOGLE_ADS_CLIENT_ID, etc. This is a
+    // Missing TIKTOK_CLIENT_ID / GOOGLE_CLIENT_ID, etc. This is a
     // deployment-configuration issue, not a user error — surface it as a
     // redirect back to the dashboard rather than an unhandled 500.
     console.error(`${platform} OAuth not configured:`, (err as Error).message);

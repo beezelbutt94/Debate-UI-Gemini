@@ -4,37 +4,42 @@ import { useEffect, useState } from 'react';
 import type { CampaignLog, PlatformConnection, UserRow } from '@/lib/types';
 
 const OAUTH_MESSAGES: Record<string, string> = {
-  connected: 'Ad account connected.',
+  connected: 'Account connected.',
   not_configured: "This platform isn't configured yet — try again once it's set up.",
   state_mismatch: 'Connection attempt expired or was tampered with. Please try again.',
   missing_code: 'The platform did not return an authorization code. Please try again.',
   exchange_failed: 'Could not complete the connection. Please try again.',
   store_failed: 'Connected, but saving the connection failed. Please try again.',
-  unauthenticated: 'Please sign in before connecting an ad account.',
+  unauthenticated: 'Please sign in before connecting an account.',
 };
 
 const PLANS = [
-  { id: 'starter', label: 'Starter', price: '€49/mo', credits: '50k views' },
-  { id: 'pro', label: 'Pro', price: '€149/mo', credits: '200k views' },
-  { id: 'agency', label: 'Agency', price: '€499/mo', credits: '1M views' },
+  // Credits meter the work this app does on its own hardware, not an ad
+  // budget -- so the unit is renders, not impressions bought.
+  { id: 'starter', label: 'Starter', price: '€49/mo', credits: '50 renders' },
+  { id: 'pro', label: 'Pro', price: '€149/mo', credits: '250 renders' },
+  { id: 'agency', label: 'Agency', price: '€499/mo', credits: '1,000 renders' },
 ] as const;
 
-const AD_ACCOUNTS = [
-  { platform: 'tiktok', label: 'TikTok Ads' },
-  { platform: 'google', label: 'Google Ads' },
+const CONNECTABLE_ACCOUNTS = [
+  { platform: 'tiktok', label: 'TikTok' },
+  { platform: 'google', label: 'YouTube' },
 ] as const;
 
 /** Fallbacks for error codes the API can return without a `detail`. */
 const CAMPAIGN_ERRORS: Record<string, string> = {
-  not_connected: "You haven't connected that platform's ad account yet.",
+  not_connected: "You haven't connected that account yet.",
   not_configured: "This platform isn't set up on this deployment yet.",
-  not_implemented: "Campaigns for this platform aren't available yet.",
-  upstream_error: 'The ad platform rejected the campaign.',
+  not_reviewed: "This app is still awaiting the platform's publishing approval.",
+  not_implemented: "Publishing to this platform isn't available yet.",
+  upstream_error: 'The platform rejected the upload.',
   unsupported_url: 'Only TikTok and YouTube links are accepted.',
   unauthenticated: 'Please sign in again.',
 };
 
-const DEFAULT_CREDIT_REQUEST = 1000;
+// One render, one credit. (Under the ad model this defaulted to 1000,
+// because a credit was a unit of ad spend rather than a unit of work.)
+const DEFAULT_CREDIT_REQUEST = 1;
 
 /**
  * A failed request can return an HTML error page rather than JSON. Letting
@@ -98,13 +103,13 @@ export default function Dashboard({
         setCampaigns((prev) => [body.campaign, ...prev]);
         setActiveCredits((prev) => prev - credits);
         setUrl('');
-        // A 201 can still carry a warning: the campaign is live but its
-        // status row didn't get written. Saying "submitted" and hiding that
-        // invites a resubmit that spends the creator's ad budget twice.
+        // A 201 can still carry a warning: the video is live but its
+        // status row didn't get written. Saying "published" and hiding that
+        // invites a resubmit that double-posts to the creator's account.
         setMessage(
           body.warning
-            ? `Campaign submitted, but: ${body.detail ?? body.warning}`
-            : 'Campaign submitted.'
+            ? `Published, but: ${body.detail ?? body.warning}`
+            : 'Published.'
         );
         return;
       }
@@ -190,7 +195,7 @@ export default function Dashboard({
             disabled={submitting}
             className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {submitting ? 'Submitting…' : 'Amplify'}
+            {submitting ? 'Publishing…' : 'Publish'}
           </button>
         </form>
         {message && <p className="mt-2 text-sm text-neutral-500">{message}</p>}
@@ -198,10 +203,10 @@ export default function Dashboard({
 
       <section>
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-neutral-500">
-          Ad accounts
+          Connected accounts
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {AD_ACCOUNTS.map((account) => {
+          {CONNECTABLE_ACCOUNTS.map((account) => {
             const connected = connections.some((c) => c.platform === account.platform);
             return (
               <div
