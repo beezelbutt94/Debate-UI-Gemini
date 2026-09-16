@@ -18,12 +18,18 @@ record if you're archaeology-minded.
   provider)
 - Stripe (Creator/Pro/Studio subscription billing, quota-gated usage)
 - Tavily (`/extract`) for URL content extraction
-- Anthropic Claude (Messages API, tool-use/structured output) for the
-  actual audit synthesis
+- YouTube Data API v3 for real channel/upload stats
+- Cloudinary (signed direct-to-cloud video upload, frame + waveform
+  extraction via delivery transformations)
+- Mem0 (creator-voice memory, via the official `mem0ai` SDK)
+- Anthropic Claude (Messages API, tool-use/structured output, and vision
+  for the Upload Diagnostic) for the actual audit synthesis
 
-## What's built: the Viral Gap Analyzer
+## What's built
 
-The one feature in this pass that's real end to end, not a stub:
+Five features, real end to end, not stubs:
+
+### Viral Gap Analyzer
 
 1. `app/dashboard/analyze/page.tsx` + `components/AnalyzerForm.tsx` — paste
    a URL, see the score, hook evaluation, retention prediction, pacing
@@ -44,19 +50,151 @@ The one feature in this pass that's real end to end, not a stub:
    - **Refunds** the quota unit via `refund_analysis_quota()` if any step
      after the quota check fails — a scrape or LLM error should never
      permanently cost a user one of their monthly analyses.
-3. Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
-   Checkout session against real test-mode prices (Creator/Pro/Studio,
-   created via the Stripe MCP connector under the "Peshets sandbox"
-   account); `app/api/stripe/webhook/route.ts` verifies the signature,
-   dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
-   tier + quota limit into `subscriptions`.
-4. Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
-   `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
-   requests to `/sign-in` and returning a JSON 401 for API requests.
-   `app/api/webhooks/clerk/route.ts` syncs `user.created` /
-   `user.updated` / `user.deleted` into the `users` table and creates a
-   default `subscriptions` row (Creator tier, 10 analyses/month) on
-   signup.
+
+### Creator Account Deep-Dive
+
+1. `app/dashboard/deep-dive/page.tsx` + `components/DeepDiveForm.tsx` —
+   enter a niche and one or more platform handles (YouTube, TikTok,
+   Instagram), see a growth blueprint: thematic consistency, view-to-
+   follower ratio, posting cadence, theme correction, view-maximization
+   tactics, posting blindspots.
+2. `app/api/creators/deep-dive/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the Analyzer above.
+   - **YouTube**: real, official YouTube Data API v3 calls
+     (`lib/youtube.ts` — `channels.list`, `playlistItems.list`,
+     `videos.list`), computing actual posting cadence and view-to-
+     subscriber ratio from the last 15 uploads. No scraping.
+   - **TikTok/Instagram**: Tavily extraction of the public profile page
+     (same `lib/tavily.ts` as the Analyzer) — best-effort, since neither
+     platform has an official, self-serve API a third-party app can call
+     with just an API key (the same real constraint ViralSync's own
+     TikTok/Google Ads OAuth flow hit, documented honestly there rather
+     than faked).
+   - One platform failing (bad handle, rate limit) doesn't sink a
+     multi-platform request — the failure is recorded as data and the LLM
+     is told what's missing and why, rather than the whole call 500ing.
+   - Upserts `creators_profiles` (handles, niche, a `connected_metrics`
+     cache of everything fetched), then Claude (`lib/anthropic.ts`,
+     `generateGrowthBlueprint`) synthesizes the blueprint from the real
+     data — grounded explicitly: the system prompt forbids inventing a
+     metric that wasn't actually provided.
+   - Writes to `audit_reports` (`source_type: 'account'`) and refunds the
+     quota unit on any failure, same as the Analyzer.
+
+### Multimodal Video Upload Diagnostic
+
+1. `app/dashboard/upload/page.tsx` + `components/UploadDiagnosticForm.tsx`
+   — pick an MP4/MOV, watch it upload with a real progress bar, then see
+   visual hook clarity, audio balance, text-overlay pacing, B-roll
+   recommendations, retention boosters, and timeline-pinned feedback.
+2. **The upload itself never touches our server.** `app/api/uploads/sign`
+   mints a Cloudinary-signed upload (`lib/cloudinary.ts`,
+   `createSignedVideoUpload`) scoped to a per-user folder
+   (`viralengine/uploads/<clerk user id>/`); the browser then POSTs the
+   video bytes straight to Cloudinary. This is the real fix for Vercel's
+   ~4.5MB serverless request body ceiling — a multi-hundred-MB video
+   proxied through our own route would fail immediately.
+3. `app/api/analyze/upload/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other two features.
+   - Refuses any `publicId` outside the caller's own upload folder (403)
+     — otherwise one user could hand us someone else's asset to analyze
+     for free.
+   - Looks up the asset's *authoritative* duration via Cloudinary's Admin
+     API rather than trusting whatever the client claims.
+   - Picks up to 6 frame timestamps (`pickFrameTimestamps`, always
+     including the 0–3s hook window), fetches each as a real JPEG via
+     Cloudinary's `so_<seconds>` on-the-fly transformation, and fetches a
+     real waveform PNG via `fl_waveform` — no separate rendering pipeline
+     of our own, Cloudinary generates and caches these on first request.
+   - Sends the actual frame images and waveform image (as base64, not
+     descriptions) to Claude's vision input (`lib/anthropic.ts`,
+     `generateUploadDiagnosis`) — the model looks at real pixels, and its
+     system prompt requires every timeline timestamp to be one it was
+     actually shown a frame for.
+   - Writes to `audit_reports` (`source_type: 'upload'`) and refunds the
+     quota unit on any failure.
+
+### Algorithmic Script & Storyboard Generator
+
+1. `app/dashboard/script/page.tsx` + `components/ScriptGeneratorForm.tsx`
+   — enter a prompt, optional target platform and tone, get a spoken hook
+   (<3s), 2-6 scenes (visual action, dialogue/VO, audio/SFX cue, why that
+   scene retains the viewer), and a closing CTA.
+2. `app/api/generate/script/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other three features.
+   - Ensures a `creators_profiles` row and a stable Mem0 scope key exist
+     (creating both on first use if Deep-Dive never ran first).
+   - **Retrieves** real prior creator-voice memories via Mem0's semantic
+     search (`lib/mem0.ts`, `retrieveCreatorVoice`, using the official
+     `mem0ai` SDK) scoped to that key and relevant to the current prompt.
+   - Sends the prompt, tone, and retrieved memories to Claude
+     (`lib/anthropic.ts`, `generateScript`) — the system prompt explicitly
+     tells the model not to claim it's matching an established style when
+     no memory was actually found, rather than faking consistency.
+   - **Writes back** a summary of the style choices this script actually
+     used (`recordScriptStyle`), so the *next* generation has something
+     real to retrieve — this is how "historical voice and tone" actually
+     accumulates rather than staying permanently empty.
+   - Mem0 being unreachable degrades gracefully (the script still
+     generates) but is never silently swallowed: the API response and UI
+     both surface `memory_context_used` / whether the write-back
+     succeeded, following this repo's own established rule about not
+     hiding a failure behind an apparently-normal result (see
+     `docs/DEBUG_RUN.md`'s "failures that were hidden rather than fixed").
+   - Writes to `scripts` and refunds the quota unit on any failure.
+
+### Creator Tool Suite Hub
+
+1. `app/dashboard/tools/page.tsx` + `components/ToolSuiteHub.tsx` — no
+   input needed; on load it fetches contextual recommendations for
+   Descript, OpusClip, HyperFrames by HeyGen, and Canva, each with a real
+   deep link and a reason grounded in one of your own recent reports.
+2. `app/api/tools/recommendations/route.ts`:
+   - Pulls your 5 most recent `audit_reports` and 3 most recent `scripts`,
+     builds a plain-text digest of their actual weak points per report
+     type (`digestReport`/`digestScript`), and sends that to Claude
+     (`lib/anthropic.ts`, `generateToolRecommendations`) with a system
+     prompt that forbids recommending a tool for a problem it doesn't
+     solve and forbids citing a finding that wasn't actually in the
+     digest.
+   - **The LLM never controls the URL.** Its tool-use schema constrains
+     `tool` to a 4-value enum; the actual deep link is looked up
+     server-side from `lib/tool-suite.ts`'s fixed `TOOL_INFO` map. This
+     is deliberate: letting a model emit an arbitrary URL that then
+     renders as a clickable link is both a hallucination risk (a
+     plausible but wrong or dead URL) and an injection risk.
+   - A brand-new user with no reports yet gets a small set of honest
+     starter recommendations instead of a wasted LLM call synthesizing
+     advice from nothing.
+   - **Not quota-gated**, unlike the other four features — this route
+     doesn't analyze new external content, it's a free synthesis layer
+     over analyses the user already paid a quota unit to generate. A
+     deliberate scoping choice, documented in the route itself and in
+     `docs/VIRALENGINE_ROADMAP.md`, not an oversight.
+3. What's real vs. what isn't: recommendations and deep links are fully
+   real. Actually *driving* Descript/OpusClip/HyperFrames/Canva on the
+   user's behalf (e.g., auto-submitting a clip to OpusClip) would need a
+   real per-user OAuth connection to each of those four services — the
+   same category of constraint ViralSync's own TikTok/Google Ads OAuth
+   flow already documented honestly for this repo, one product ago. That
+   automation is intentionally not built or stubbed here; see
+   `docs/VIRALENGINE_ROADMAP.md`.
+
+### Shared platform pieces
+
+- Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
+  Checkout session against real test-mode prices (Creator/Pro/Studio,
+  created via the Stripe MCP connector under the "Peshets sandbox"
+  account); `app/api/stripe/webhook/route.ts` verifies the signature,
+  dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
+  tier + quota limit into `subscriptions`.
+- Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
+  `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
+  requests to `/sign-in` and returning a JSON 401 for API requests.
+  `app/api/webhooks/clerk/route.ts` syncs `user.created` /
+  `user.updated` / `user.deleted` into the `users` table and creates a
+  default `subscriptions` row (Creator tier, 10 analyses/month) on
+  signup.
 
 See `docs/DEBUG_RUN.md`'s "ViralEngine (current app)" section for the real
 issues this surfaced and how each was fixed — including two genuine
@@ -65,19 +203,18 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Creator Account Deep-Dive, Multimodal Video Upload Diagnostic, Script &
-Storyboard Generator, Creator Tool Suite Hub, Competitor Espionage Engine,
-and the Scheduling/Publishing Planner. See
+Competitor Espionage Engine and the Scheduling/Publishing Planner. See
 **`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
 (already created, see below) and API routes each one needs, and which
-already-verified API contracts (vidIQ, Metricool, Cloudinary, Mem0,
-OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs) to build against.
+already-verified API contracts (Metricool, Semrush, Ahrefs) to build
+against.
 
 ## Local setup
 
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
-   Stripe, Anthropic, and Tavily keys.
+   Stripe, Anthropic, Tavily, YouTube Data API v3, Cloudinary, and Mem0
+   keys.
 3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
    project (`supabase db push`, or paste into the SQL editor). A live
    project already has it applied — project ref `dcesehxmssqsszzasott`
@@ -107,9 +244,9 @@ once step 4 above is done):
 - `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
 - `creators_profiles` — niche, per-platform handles, cached connected
   metrics, Mem0 agent key.
-- `audit_reports` — every analysis result (Gap Analyzer, and eventually
-  Deep-Dive and Upload Diagnostic), JSONB payload + viral score +
-  timestamped recommendations.
+- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive, and
+  Upload Diagnostic), JSONB payload + viral score + timestamped
+  recommendations.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.
 - `subscriptions` — Stripe plan tier + atomic quota usage counters.

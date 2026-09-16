@@ -53,7 +53,26 @@ export interface ViralGapAnalysis {
   source_metrics: Record<string, unknown>;
 }
 
-export interface AuditReportRow {
+export interface GrowthBlueprint {
+  thematic_consistency: { score: number; notes: string };
+  view_to_follower_ratio: { value: number | null; assessment: string };
+  posting_cadence: { avg_days_between_posts: number | null; assessment: string };
+  theme_correction: string[];
+  view_maximization_tactics: string[];
+  posting_blindspots: string[];
+  per_platform_notes: Record<string, string>;
+}
+
+export interface UploadDiagnosis {
+  visual_hook_clarity: HookEvaluation;
+  audio_balance: { score: number; notes: string };
+  text_overlay_pacing: { assessment: string };
+  b_roll_recommendations: string[];
+  retention_boosters: string[];
+  frames_analyzed: number;
+}
+
+export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis> {
   id: string;
   user_id: string;
   creator_profile_id: string | null;
@@ -61,7 +80,62 @@ export interface AuditReportRow {
   source_url: string | null;
   platform: Platform | null;
   viral_score: number | null;
-  analysis: ViralGapAnalysis;
+  analysis: TAnalysis;
   timeline_recommendations: TimelineRecommendation[];
+  created_at: string;
+}
+
+export interface CreatorHandles {
+  youtube?: string;
+  tiktok?: string;
+  instagram?: string;
+}
+
+export interface CreatorProfileRow {
+  id: string;
+  user_id: string;
+  niche: string | null;
+  handles: CreatorHandles;
+  connected_metrics: Record<string, unknown>;
+  mem0_agent_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScriptScene {
+  scene_number: number;
+  visual_action: string;
+  dialogue_or_vo: string;
+  audio_sfx_cue: string;
+  retention_loop_note: string;
+}
+
+export interface Storyboard {
+  spoken_hook: string; // <3s -- the opening line, scene 1's dialogue
+  scenes: ScriptScene[];
+  cta: string;
+  memory_context_used: boolean; // whether prior Mem0 creator-voice memories informed this script
+}
+
+export type SuiteTool = 'descript' | 'opusclip' | 'hyperframes' | 'canva';
+
+export interface ToolRecommendation {
+  tool: SuiteTool;
+  label: string;
+  url: string;
+  reason: string; // grounded in a specific real finding, not generic advice
+  action: string; // what to actually do once there
+  source: string; // which past report/script this is grounded in, e.g. "Upload Diagnostic, Sep 12"
+}
+
+export interface ScriptRow {
+  id: string;
+  user_id: string;
+  creator_profile_id: string | null;
+  title: string;
+  source_prompt: string | null;
+  storyboard: Storyboard;
+  tone_parameters: Record<string, unknown>;
+  target_platform: Platform | null;
   created_at: string;
 }

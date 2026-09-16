@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { Loader2, Link2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { AuditReportRow } from '@/lib/types';
+import type { AuditReportRow, ViralGapAnalysis } from '@/lib/types';
 
-export function AnalyzerForm({ onAnalyzed }: { onAnalyzed?: (report: AuditReportRow) => void }) {
+type AnalyzerReport = AuditReportRow<ViralGapAnalysis>;
+
+export function AnalyzerForm({ onAnalyzed }: { onAnalyzed?: (report: AnalyzerReport) => void }) {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<AuditReportRow | null>(null);
+  const [report, setReport] = useState<AnalyzerReport | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,8 +31,8 @@ export function AnalyzerForm({ onAnalyzed }: { onAnalyzed?: (report: AuditReport
         throw new Error(body.error ?? `Request failed (${res.status})`);
       }
 
-      setReport(body.report as AuditReportRow);
-      onAnalyzed?.(body.report as AuditReportRow);
+      setReport(body.report as AnalyzerReport);
+      onAnalyzed?.(body.report as AnalyzerReport);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed.');
     } finally {
@@ -73,7 +75,7 @@ export function AnalyzerForm({ onAnalyzed }: { onAnalyzed?: (report: AuditReport
   );
 }
 
-function AnalysisReportCard({ report }: { report: AuditReportRow }) {
+function AnalysisReportCard({ report }: { report: AnalyzerReport }) {
   const { analysis } = report;
 
   return (

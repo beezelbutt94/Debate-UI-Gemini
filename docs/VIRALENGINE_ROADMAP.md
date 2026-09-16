@@ -13,89 +13,149 @@ whole spec's schema up front, not just the one shipped feature.
 | # | Feature | Status |
 |---|---|---|
 | 1 | Viral Gap Analyzer (URL Ingestion) | **Shipped** — see README.md |
-| 2 | Creator Account Deep-Dive | Not started |
-| 3 | Multimodal Video Upload Diagnostic | Not started |
-| 4 | Algorithmic Script & Storyboard Generator | Not started |
-| 5 | Creator Tool Suite Hub | Not started |
+| 2 | Creator Account Deep-Dive | **Shipped** — see README.md |
+| 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
+| 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
+| 5 | Creator Tool Suite Hub | **Shipped** — see README.md |
 | 6 | Competitor Espionage & Gap Engine | Not started |
 | 7 | Algorithmic Scheduling & Publishing Planner | Not started |
 
-## 2. Creator Account Deep-Dive
+## 2. Creator Account Deep-Dive — shipped
 
-- **Route**: `app/api/creators/deep-dive/route.ts` (new).
-- **Tables**: `creators_profiles` (write `handles`, `niche`,
-  `connected_metrics`), `audit_reports` (write with `source_type:
-  'account'`, `source_url: null`).
-- **Real API contracts available in this workspace**: the vidIQ MCP
-  connector exposes `vidiq_channel_stats`, `vidiq_channel_analytics`,
-  `vidiq_channel_performance_trends`, `vidiq_subscriber_insights`, and
-  `vidiq_similar_channels` — all verified live and well-suited to "posting
-  patterns, view-to-follower ratios, engagement drops." Metricool's
-  `getAnalyticsDataByMetrics` + `getBrandSettings` cover cross-platform
-  posting cadence. Neither vidIQ nor Metricool has a public, self-serve
-  REST API a deployed server can call with just an API key the way Tavily
-  does — both are reachable from *this* session via their MCP connectors,
-  but the deployed app itself would need whatever direct API access each
-  vendor actually sells (vidIQ's public API is limited; Metricool's is
-  account-linked). Confirm actual access before assuming a
-  fetch()-with-API-key implementation is possible; don't hallucinate an
-  endpoint the way the original spec's "vidIQ/Metricool benchmark" bullet
-  implies is trivial.
-- **Gotcha already found**: the Viral Gap Analyzer's `lib/anthropic.ts`
-  pattern (tool-use for forced structured output) is directly reusable
-  here — copy the tool-schema approach, not the specific schema.
+Built with **YouTube Data API v3** (`lib/youtube.ts`) for the YouTube half
+and **Tavily extraction** (`lib/tavily.ts`, reused from the Analyzer) for
+TikTok/Instagram — not vidIQ/Metricool. Investigating those two first
+surfaced the actual constraint worth recording for the rest of this
+roadmap: neither has a public, self-serve REST API a deployed third-party
+server can call with just an API key (vidIQ's public API is limited;
+Metricool's is account-linked) — both are only reachable from *this
+session* via their MCP connectors, which isn't the same thing as the
+*deployed app* being able to call them. YouTube's official API is
+self-serve, well-documented, and zero-hallucination-risk, so it's the real
+data source for the platform the spec cares most about; TikTok/Instagram
+get the same honest, best-effort treatment the Analyzer already gives them
+(and that ViralSync's own TikTok/Google Ads OAuth flow gave that same
+constraint, one product ago).
 
-## 3. Multimodal Video Upload Diagnostic
+Reused directly from the Analyzer: the quota consume/refund pattern, the
+`lib/anthropic.ts` tool-use-for-structured-output approach (new schema:
+`generateGrowthBlueprint`/`GrowthBlueprint`), and the service-role-client-
+with-explicit-filter pattern for reads (see `app/dashboard/deep-dive/page.tsx`).
+One addition worth reusing forward: a failed platform fetch is recorded as
+`{error: message}` *inside* the data handed to Claude rather than failing
+the whole request — a bad TikTok handle shouldn't block a YouTube result
+when both were requested together.
 
-- **Route**: `app/api/analyze/upload/route.ts` (new).
-- **Tables**: `audit_reports` with `source_type: 'upload'`.
-- **Real API contract**: Cloudinary MCP connector has `sign-upload` (a
-  verified, real signed-upload-preset flow — this is exactly the right
-  primitive for direct-from-browser video upload without routing the
-  file through the Next.js server). The route should mint a signed
-  upload via Cloudinary and hand the browser a direct-upload URL, not
-  proxy the video bytes itself.
-- **Rate-limit / payload-size note carried over from the debug pass**:
-  Vercel serverless functions have a hard request body ceiling (4.5MB on
-  the default plan) — this is exactly why the upload must go
-  browser→Cloudinary directly via a signed preset, never
-  browser→Next.js route→Cloudinary. Getting this wrong is the most likely
-  first bug in this feature.
-- Frame/audio extraction for "visual hook clarity, audio/voice balance,
-  B-roll recommendations" needs Cloudinary's video analysis add-ons or a
-  separate frame-extraction step before the Claude call — not yet
-  verified against a real Cloudinary account in this session.
+## 3. Multimodal Video Upload Diagnostic — shipped
 
-## 4. Algorithmic Script & Storyboard Generator
+Built exactly as this section originally proposed, with one addition the
+original plan didn't call out: no Cloudinary "video analysis add-on" was
+needed for frame/audio extraction. Cloudinary's own on-the-fly delivery
+transformations do it for free —  `so_<seconds>` extracts a real JPEG
+frame at a timestamp, `fl_waveform` renders a real waveform PNG — both
+generated lazily on first request and cached, no separate processing step
+or add-on subscription. The frames and waveform are sent as actual base64
+image blocks to Claude's vision input (`lib/anthropic.ts`,
+`generateUploadDiagnosis`), not described in text — the model looks at
+real pixels. The signed-upload flow matches the Cloudinary MCP
+connector's own `sign-upload` contract, verified live before writing
+`lib/cloudinary.ts`'s manual HMAC signing (sorted params + api_secret,
+SHA-1 — Cloudinary's textbook algorithm, unchanged for years).
 
-- **Route**: `app/api/generate/script/route.ts` (new).
-- **Tables**: `scripts` (storyboard JSONB, tone_parameters,
-  target_platform), reads `creators_profiles.mem0_agent_key` for style
-  retrieval.
-- **Real API contract**: Mem0 MCP connector (`add_memory`,
-  `search_memories`, `get_memories`) is live and verified reachable in
-  this workspace. Store one Mem0 entry per creator keyed by
-  `creators_profiles.mem0_agent_key`, updated after every accepted script
-  (their actual chosen tone/voice), and retrieve it before generation.
-- **Reuse**: `lib/anthropic.ts`'s tool-use pattern again, with a schema
-  matching the spec's per-scene shape (Visual Action, Spoken Hook <3s,
-  Audio/SFX Cue, Retention Loop, CTA).
+The payload-size note from the original plan was correct and is exactly
+what got built: the browser uploads straight to Cloudinary
+(`app/api/uploads/sign` only mints credentials), never through our own
+serverless function.
 
-## 5. Creator Tool Suite Hub
+One security addition worth reusing forward for any future
+user-owns-this-asset check: `app/api/analyze/upload/route.ts` refuses any
+`publicId` outside the caller's own `viralengine/uploads/<clerk id>/`
+folder prefix (403) before doing anything else, and re-fetches the
+asset's real duration from Cloudinary's Admin API rather than trusting
+whatever the client claims.
 
-- No new table — this is a recommendation/deep-link layer over the other
-  features' outputs, not its own data model.
-- **Real, verified MCP connectors in this workspace**: Descript
-  (`import_media`, `prompt_project_agent`, `publish_project`), OpusClip
-  (`opusclip_create_upload_link`, `opusclip_analyze_video`,
-  `opusclip_submit_project`), HyperFrames by HeyGen (`compose`,
-  `render_video` — noted as disabled from CLI/IDE agents per that
-  connector's own instructions; a hosted-chat-only path), Canva
-  (`generate-design`, `create-design-from-brand-template`). All four have
-  real tool schemas already loaded in this session — inspect them again
-  (`ToolSearch`) before wiring the actual deep-link URLs, since each
-  needs its own OAuth/account-linking flow the deployed app doesn't have
-  yet.
+**Also surfaced here, worth fixing before shipping feature 4**: every
+third-party npm dependency added in this session so far
+(`@anthropic-ai/sdk`, `@clerk/nextjs`, `stripe`, `svix`,
+`@supabase/supabase-js`) was pinned from training-data memory of a
+plausible version rather than checked against the npm registry.
+`@anthropic-ai/sdk` was nearly 100 minor versions stale (`^0.32.1` vs.
+the real latest `0.126.0`) and its old types didn't even export
+`ContentBlockParam`, which is exactly the vision-input type this feature
+needed — caught immediately by `tsc`, not silently wrong. Bumped just
+that one dependency (verified via `npm view <pkg> version`, then
+typechecked/built/lint clean against the new types) since it was the one
+actually blocking; `@clerk/nextjs` (^6.9.6 vs. 7.9.4), `stripe` (^17.2.1
+vs. 22.6.2), and `svix` (^1.42.0 vs. 2.5.0) are each a major version
+behind but not currently broken — bumping those now is a real,
+not-yet-done follow-up, deliberately not bundled into this feature to
+avoid destabilizing the two already-shipped ones on an unrelated major
+upgrade.
+
+## 4. Algorithmic Script & Storyboard Generator — shipped
+
+Unlike vidIQ/Metricool (feature 2) and unlike TikTok/Google Ads (ViralSync,
+one product ago), Mem0 turned out to have a genuine, well-documented,
+self-serve API with an official `mem0ai` npm SDK — a real third-party
+Node dependency, not just an MCP-connector-only integration. Installed it
+and read its shipped `.d.ts` directly rather than guessing the method
+signatures: `MemoryClient.add(messages, {userId, ...})` and
+`MemoryClient.search(query, {filters, topK, threshold, ...})`. One thing
+that guessing would have gotten wrong: `search()`'s options do *not* take
+a `userId` field the way `add()`'s does (`tsc` caught this in seconds) —
+user-scoping for search goes through `filters: {AND: [{user_id: ...}]}`
+instead, matching the same filter-object pattern the Mem0 MCP connector's
+own tool descriptions already documented.
+
+`lib/mem0.ts` wraps both calls to degrade non-fatally: a creator's first
+script has nothing to retrieve, and Mem0 being unreachable shouldn't block
+generation, but per this repo's own "failures that were hidden rather
+than fixed" rule (see `docs/DEBUG_RUN.md`), that degradation is returned
+to the caller (`{available: false, error}` / `{recorded: false, error}`)
+and surfaced in both the API response and the UI, not silently
+swallowed — `generateScript()`'s system prompt is even told explicitly
+not to claim it's matching an established style when no memory was
+actually retrieved.
+
+Reused directly: the quota consume/refund pattern, the creators_profiles
+upsert-by-most-recent-row pattern from Deep-Dive (extended here to also
+mint a `mem0_agent_key` if one doesn't exist yet), and the
+tool-use-for-structured-output approach in `lib/anthropic.ts`
+(`generateScript`/`Storyboard`, matching the spec's per-scene shape:
+Visual Action, Spoken Hook <3s, Audio/SFX Cue, Retention Loop, CTA).
+
+## 5. Creator Tool Suite Hub — shipped
+
+Built as what the spec actually called it — a "contextual recommendation
+module," not a workflow-automation engine. Investigating Descript,
+OpusClip, HyperFrames, and Canva first confirmed the constraint this
+roadmap already flagged for feature 5 before it shipped: each needs its
+own per-user OAuth/account-linking flow to actually *drive* on a user's
+behalf (submit a clip to OpusClip, trigger Descript's Studio Sound,
+render a HyperFrames composition, generate a Canva design against a
+connected account) — the same category of gap ViralSync's own TikTok/
+Google Ads OAuth flow already documented honestly, one product ago.
+Building four such flows is a real, large, separate undertaking (each is
+its own OAuth app registration, consent screen, and token-storage
+problem, mirroring the effort `lib/oauth/` used to represent in this repo
+before the ViralEngine pivot) — deliberately not attempted or stubbed
+here.
+
+What *is* real: `app/api/tools/recommendations/route.ts` pulls a
+creator's actual recent `audit_reports`/`scripts`, digests their real
+weak points per report type, and has Claude route each one to whichever
+of the four tools actually addresses it, with reasoning that must cite
+the specific finding — never a generic pitch. The one design choice worth
+reusing forward: the model's structured output constrains `tool` to a
+4-value enum, and the real deep-link URL is resolved server-side from
+`lib/tool-suite.ts`, never trusted from the LLM's own output — the same
+"don't let the model emit something that renders as a live link/action"
+caution as the `publicId`-ownership check in feature 3.
+
+This route is also the first of the five shipped features that isn't
+quota-gated — it synthesizes over analyses the user already paid a quota
+unit for, rather than analyzing new external content, so gating it again
+would double-charge for the same underlying work.
 
 ## 6. Competitor Espionage & Gap Engine
 

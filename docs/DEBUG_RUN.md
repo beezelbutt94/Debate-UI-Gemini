@@ -10,12 +10,14 @@
 
 ## ViralEngine (current app)
 
-Findings from actually building and running the ViralEngine rebuild: real
-`npm run typecheck`, `npm run build`, `npm run lint`, and a live `next dev`
-smoke test (curl against `/`, `/dashboard/analyze`, `/api/analyze/url`,
-`/sign-in`), plus real infrastructure checks via the Supabase and Stripe
-MCP connectors (`get_advisors`, `information_schema` queries against the
-live `unseen-reels` project).
+Findings from actually building and running the ViralEngine rebuild
+(Viral Gap Analyzer, Creator Account Deep-Dive, Multimodal Video Upload
+Diagnostic, Algorithmic Script & Storyboard Generator, Creator Tool Suite
+Hub): real `npm run typecheck`, `npm run build`, `npm run lint`, and
+repeated live `next dev` smoke tests against every route added, plus real
+infrastructure checks via the Supabase and Stripe MCP connectors
+(`get_advisors`, `information_schema` queries against the live
+`unseen-reels` project).
 
 | Finding | Evidence | Fix |
 |---|---|---|
@@ -28,14 +30,29 @@ live `unseen-reels` project).
 | A scrape or LLM failure after the quota RPC succeeded would permanently cost the user an analysis for nothing (mirrors the exact bug already fixed once in this repo for ViralSync's credits — see `fail_campaign_and_refund()` below). | Code-review of the failure path before shipping, not a live incident. | Added `refund_analysis_quota()` (same `SECURITY DEFINER`/service-role-only pattern) and call it from every catch branch in `app/api/analyze/url/route.ts`, including the Tavily-rate-limit branch. |
 | Tavily's `/extract` can rate-limit (429) or hang. | Verified the success response shape live via the Tavily MCP connector against a real YouTube Shorts URL; the 429/timeout paths are handled defensively rather than reproduced live (no way to force Tavily to rate-limit on demand). | `lib/tavily.ts`: typed `TavilyRateLimitError` carrying `Retry-After`, propagated as a `429` with that header; a 15s `AbortController` timeout so a hung request can't pin a serverless invocation open indefinitely. |
 | `auth.jwt()->>'sub'` RLS policies only resolve once Clerk is configured as a Supabase "Third Party Auth" provider in the dashboard — a manual step no API/CLI tool here can perform. | N/A — a configuration gap, not a code bug. | Documented prominently in `.env.example`. The shipped Viral Gap Analyzer route avoids depending on it entirely: it reads/writes via the service-role client with an explicit `user_id` filter sourced from Clerk's server-verified session, not the RLS-scoped client. |
-| Multimodal video upload size/format constraints (Cloudinary signed uploads) | N/A | Not applicable yet — that feature isn't built (see `docs/VIRALENGINE_ROADMAP.md`); flagged there rather than solved speculatively here. |
+| Multimodal video upload size/format constraints: a multi-hundred-MB video proxied through our own serverless function would exceed Vercel's ~4.5MB request body ceiling. | N/A — no way to reproduce a real oversized-payload rejection without a deployed Vercel instance and a large test file in this session. | `app/api/uploads/sign` mints Cloudinary-signed upload credentials; the browser (`components/UploadDiagnosticForm.tsx`, via `XMLHttpRequest` for real progress events) POSTs the video bytes straight to Cloudinary. Our server never sees the file. |
+| `@anthropic-ai/sdk` was pinned to `^0.32.1` from training-data memory rather than checked against the registry — nearly 100 minor versions stale. Its old types don't export `ContentBlockParam`, the exact vision-input type the Upload Diagnostic needed. | `tsc --noEmit`: `'Anthropic' has no exported member named 'ContentBlockParam'`. `npm view @anthropic-ai/sdk version` -> real latest is `0.126.0`. | Bumped to `^0.126.0`, reinstalled, re-typechecked/built/linted clean against the new types (which do export `ContentBlockParam`, and whose `Model` union includes `'claude-sonnet-5'` as a named literal — confirms that model id was correct all along). `@clerk/nextjs`, `stripe`, and `svix` are each a major version behind too (checked via the same `npm view` sweep) but not currently broken by it — deliberately not bumped in this pass; see `docs/VIRALENGINE_ROADMAP.md`. |
+| One user could pass another user's (or any public) Cloudinary `publicId` to the diagnostic route and get it analyzed on their own quota. | Code-review of the route before shipping, not a live incident. | `app/api/analyze/upload/route.ts` refuses any `publicId` outside the caller's own `viralengine/uploads/<clerk id>/` prefix (403) before spending a Claude call on it, and re-fetches the asset's real duration from Cloudinary's Admin API rather than trusting the client's claim. |
+| `mem0ai`'s `SearchMemoryOptions` type doesn't have a `userId` field the way `AddMemoryOptions` does (`add()` and `search()` scope users differently) — a plausible guess that matched `add()`'s shape didn't compile for `search()`. | `tsc --noEmit`: `Object literal may only specify known properties, and 'userId' does not exist in type 'SearchMemoryOptions'`. | Read the shipped `node_modules/mem0ai/dist/index.d.ts` directly instead of guessing twice: `search()` scopes by `filters: {AND: [{user_id: ...}]}`, matching the pattern already documented in the Mem0 MCP connector's own tool descriptions. Fixed `lib/mem0.ts` accordingly. |
+| Mem0 install initially failed outright: `mem0ai@3.1.8` declares an optional peer dependency on `@anthropic-ai/sdk@^0.40.1`, which our already-bumped `^0.126.0` doesn't satisfy (0.x caret ranges are patch-only). | `npm install mem0ai`: `ERESOLVE ... peerOptional @anthropic-ai/sdk@"^0.40.1"`. | Installed with `--legacy-peer-deps` — safe here since the conflicting peer is optional and unused (we only call `mem0ai`'s plain `MemoryClient.add`/`search`, none of its Anthropic-specific helpers). |
+| A creator's very first script (or any request during a real Mem0 outage) has no prior-voice memory to retrieve — without an explicit signal, the LLM could plausibly claim to be "staying consistent with your established style" when nothing was actually retrieved. | Read through `generateScript()`'s prompt construction before shipping, not a live incident. | `lib/anthropic.ts`'s system prompt branches on `hasMemory` and explicitly forbids claiming consistency with a style that wasn't actually provided when no memories were found. `Storyboard.memory_context_used` carries the same signal into the UI. |
+| A tool-recommendation LLM response could plausibly emit or invent a URL for one of the four linked tools — rendered directly as a clickable link, that's both a hallucination risk (a dead/wrong URL) and an injection risk (a crafted response steering a user elsewhere). | Design review before writing `app/api/tools/recommendations/route.ts`, not a live incident. | The tool-use schema constrains `tool` to a 4-value enum; `lib/tool-suite.ts`'s fixed `TOOL_INFO` map resolves the real URL server-side, never trusting anything URL-shaped from the model's own output. |
+| `components/ToolSuiteHub.tsx`'s fetch-on-mount `useEffect` hit the same `react-hooks/set-state-in-effect` lint rule already flagging the pre-existing, untouched `app/dashboard/settings/domain/page.tsx` — restructuring to defer all `setState` calls until after the first `await` (the textbook fix) didn't satisfy it either; the rule flags any effect that transitively reaches a `setState` call at all, sync or not. | `npm run lint`: same rule, same message, new file. | Deliberate, commented `eslint-disable-next-line react-hooks/set-state-in-effect` on the one line that calls the fetch function — migrating to a Suspense/loader-based data-fetching setup to satisfy the rule "properly" is a real architectural change out of scope for one component, and would leave this repo with two different data-fetching patterns for no functional gain. |
 
 Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
-`npm run build` (all 14 routes compile), `npm run lint` (clean except the
-2 pre-existing ViralVision findings above), and a live `next dev` pass —
-`GET /` -> 200, `GET /dashboard/analyze` unauthenticated -> 307 to
-`/sign-in`, `POST /api/analyze/url` unauthenticated -> 401 JSON,
-`GET /sign-in` -> 200.
+`npm run build` (all 23 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings — plus two real findings in this
+session's own new code, an unescaped apostrophe and the `useEffect` lint
+rule above, both caught and resolved the same run each was introduced),
+and live `next dev` passes — `GET /` -> 200,
+`GET /dashboard/{analyze,deep-dive,upload,script,tools}` unauthenticated
+-> 307 to `/sign-in`, `POST/GET /api/{analyze/url,creators/deep-dive,
+uploads/sign,analyze/upload,generate/script,tools/recommendations}`
+unauthenticated -> 401 JSON, `GET /sign-in` -> 200. One test run without
+`.env.local` present caught a real gap in test discipline, not the app:
+`/dashboard/tools` returned 200 instead of 307 because Clerk had no
+configured key in that run, not because auth was actually broken —
+re-verified with the env file in place before trusting the result.
 
 ---
 
