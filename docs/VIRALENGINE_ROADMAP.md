@@ -15,7 +15,7 @@ whole spec's schema up front, not just the one shipped feature.
 | 1 | Viral Gap Analyzer (URL Ingestion) | **Shipped** — see README.md |
 | 2 | Creator Account Deep-Dive | **Shipped** — see README.md |
 | 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
-| 4 | Algorithmic Script & Storyboard Generator | Not started |
+| 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
 | 5 | Creator Tool Suite Hub | Not started |
 | 6 | Competitor Espionage & Gap Engine | Not started |
 | 7 | Algorithmic Scheduling & Publishing Planner | Not started |
@@ -92,20 +92,37 @@ not-yet-done follow-up, deliberately not bundled into this feature to
 avoid destabilizing the two already-shipped ones on an unrelated major
 upgrade.
 
-## 4. Algorithmic Script & Storyboard Generator
+## 4. Algorithmic Script & Storyboard Generator — shipped
 
-- **Route**: `app/api/generate/script/route.ts` (new).
-- **Tables**: `scripts` (storyboard JSONB, tone_parameters,
-  target_platform), reads `creators_profiles.mem0_agent_key` for style
-  retrieval.
-- **Real API contract**: Mem0 MCP connector (`add_memory`,
-  `search_memories`, `get_memories`) is live and verified reachable in
-  this workspace. Store one Mem0 entry per creator keyed by
-  `creators_profiles.mem0_agent_key`, updated after every accepted script
-  (their actual chosen tone/voice), and retrieve it before generation.
-- **Reuse**: `lib/anthropic.ts`'s tool-use pattern again, with a schema
-  matching the spec's per-scene shape (Visual Action, Spoken Hook <3s,
-  Audio/SFX Cue, Retention Loop, CTA).
+Unlike vidIQ/Metricool (feature 2) and unlike TikTok/Google Ads (ViralSync,
+one product ago), Mem0 turned out to have a genuine, well-documented,
+self-serve API with an official `mem0ai` npm SDK — a real third-party
+Node dependency, not just an MCP-connector-only integration. Installed it
+and read its shipped `.d.ts` directly rather than guessing the method
+signatures: `MemoryClient.add(messages, {userId, ...})` and
+`MemoryClient.search(query, {filters, topK, threshold, ...})`. One thing
+that guessing would have gotten wrong: `search()`'s options do *not* take
+a `userId` field the way `add()`'s does (`tsc` caught this in seconds) —
+user-scoping for search goes through `filters: {AND: [{user_id: ...}]}`
+instead, matching the same filter-object pattern the Mem0 MCP connector's
+own tool descriptions already documented.
+
+`lib/mem0.ts` wraps both calls to degrade non-fatally: a creator's first
+script has nothing to retrieve, and Mem0 being unreachable shouldn't block
+generation, but per this repo's own "failures that were hidden rather
+than fixed" rule (see `docs/DEBUG_RUN.md`), that degradation is returned
+to the caller (`{available: false, error}` / `{recorded: false, error}`)
+and surfaced in both the API response and the UI, not silently
+swallowed — `generateScript()`'s system prompt is even told explicitly
+not to claim it's matching an established style when no memory was
+actually retrieved.
+
+Reused directly: the quota consume/refund pattern, the creators_profiles
+upsert-by-most-recent-row pattern from Deep-Dive (extended here to also
+mint a `mem0_agent_key` if one doesn't exist yet), and the
+tool-use-for-structured-output approach in `lib/anthropic.ts`
+(`generateScript`/`Storyboard`, matching the spec's per-scene shape:
+Visual Action, Spoken Hook <3s, Audio/SFX Cue, Retention Loop, CTA).
 
 ## 5. Creator Tool Suite Hub
 

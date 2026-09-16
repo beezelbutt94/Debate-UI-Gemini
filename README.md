@@ -21,12 +21,13 @@ record if you're archaeology-minded.
 - YouTube Data API v3 for real channel/upload stats
 - Cloudinary (signed direct-to-cloud video upload, frame + waveform
   extraction via delivery transformations)
+- Mem0 (creator-voice memory, via the official `mem0ai` SDK)
 - Anthropic Claude (Messages API, tool-use/structured output, and vision
   for the Upload Diagnostic) for the actual audit synthesis
 
 ## What's built
 
-Three features, real end to end, not stubs:
+Four features, real end to end, not stubs:
 
 ### Viral Gap Analyzer
 
@@ -113,6 +114,35 @@ Three features, real end to end, not stubs:
    - Writes to `audit_reports` (`source_type: 'upload'`) and refunds the
      quota unit on any failure.
 
+### Algorithmic Script & Storyboard Generator
+
+1. `app/dashboard/script/page.tsx` + `components/ScriptGeneratorForm.tsx`
+   — enter a prompt, optional target platform and tone, get a spoken hook
+   (<3s), 2-6 scenes (visual action, dialogue/VO, audio/SFX cue, why that
+   scene retains the viewer), and a closing CTA.
+2. `app/api/generate/script/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other three features.
+   - Ensures a `creators_profiles` row and a stable Mem0 scope key exist
+     (creating both on first use if Deep-Dive never ran first).
+   - **Retrieves** real prior creator-voice memories via Mem0's semantic
+     search (`lib/mem0.ts`, `retrieveCreatorVoice`, using the official
+     `mem0ai` SDK) scoped to that key and relevant to the current prompt.
+   - Sends the prompt, tone, and retrieved memories to Claude
+     (`lib/anthropic.ts`, `generateScript`) — the system prompt explicitly
+     tells the model not to claim it's matching an established style when
+     no memory was actually found, rather than faking consistency.
+   - **Writes back** a summary of the style choices this script actually
+     used (`recordScriptStyle`), so the *next* generation has something
+     real to retrieve — this is how "historical voice and tone" actually
+     accumulates rather than staying permanently empty.
+   - Mem0 being unreachable degrades gracefully (the script still
+     generates) but is never silently swallowed: the API response and UI
+     both surface `memory_context_used` / whether the write-back
+     succeeded, following this repo's own established rule about not
+     hiding a failure behind an apparently-normal result (see
+     `docs/DEBUG_RUN.md`'s "failures that were hidden rather than fixed").
+   - Writes to `scripts` and refunds the quota unit on any failure.
+
 ### Shared platform pieces
 
 - Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
@@ -136,18 +166,18 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Script & Storyboard Generator, Creator Tool Suite Hub, Competitor
-Espionage Engine, and the Scheduling/Publishing Planner. See
-**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
-(already created, see below) and API routes each one needs, and which
-already-verified API contracts (Metricool, Mem0, OpusClip, Descript,
-HyperFrames, Canva, Semrush, Ahrefs) to build against.
+Creator Tool Suite Hub, Competitor Espionage Engine, and the
+Scheduling/Publishing Planner. See **`docs/VIRALENGINE_ROADMAP.md`** — it
+names the exact schema tables (already created, see below) and API routes
+each one needs, and which already-verified API contracts (Metricool,
+OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs) to build against.
 
 ## Local setup
 
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
-   Stripe, Anthropic, Tavily, YouTube Data API v3, and Cloudinary keys.
+   Stripe, Anthropic, Tavily, YouTube Data API v3, Cloudinary, and Mem0
+   keys.
 3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
    project (`supabase db push`, or paste into the SQL editor). A live
    project already has it applied — project ref `dcesehxmssqsszzasott`

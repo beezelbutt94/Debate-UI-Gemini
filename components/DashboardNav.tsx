@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/analyze', label: 'Viral Gap Analyzer' },
   { href: '/dashboard/deep-dive', label: 'Account Deep-Dive' },
   { href: '/dashboard/upload', label: 'Upload Diagnostic' },
+  { href: '/dashboard/script', label: 'Script Generator' },
 ];
 
 /**

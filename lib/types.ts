@@ -101,3 +101,30 @@ export interface CreatorProfileRow {
   created_at: string;
   updated_at: string;
 }
+
+export interface ScriptScene {
+  scene_number: number;
+  visual_action: string;
+  dialogue_or_vo: string;
+  audio_sfx_cue: string;
+  retention_loop_note: string;
+}
+
+export interface Storyboard {
+  spoken_hook: string; // <3s -- the opening line, scene 1's dialogue
+  scenes: ScriptScene[];
+  cta: string;
+  memory_context_used: boolean; // whether prior Mem0 creator-voice memories informed this script
+}
+
+export interface ScriptRow {
+  id: string;
+  user_id: string;
+  creator_profile_id: string | null;
+  title: string;
+  source_prompt: string | null;
+  storyboard: Storyboard;
+  tone_parameters: Record<string, unknown>;
+  target_platform: Platform | null;
+  created_at: string;
+}

@@ -12,11 +12,11 @@
 
 Findings from actually building and running the ViralEngine rebuild
 (Viral Gap Analyzer, Creator Account Deep-Dive, Multimodal Video Upload
-Diagnostic): real `npm run typecheck`, `npm run build`, `npm run lint`,
-and repeated live `next dev` smoke tests against every route added, plus
-real infrastructure checks via the Supabase and Stripe MCP connectors
-(`get_advisors`, `information_schema` queries against the live
-`unseen-reels` project).
+Diagnostic, Algorithmic Script & Storyboard Generator): real
+`npm run typecheck`, `npm run build`, `npm run lint`, and repeated live
+`next dev` smoke tests against every route added, plus real infrastructure
+checks via the Supabase and Stripe MCP connectors (`get_advisors`,
+`information_schema` queries against the live `unseen-reels` project).
 
 | Finding | Evidence | Fix |
 |---|---|---|
@@ -32,14 +32,19 @@ real infrastructure checks via the Supabase and Stripe MCP connectors
 | Multimodal video upload size/format constraints: a multi-hundred-MB video proxied through our own serverless function would exceed Vercel's ~4.5MB request body ceiling. | N/A — no way to reproduce a real oversized-payload rejection without a deployed Vercel instance and a large test file in this session. | `app/api/uploads/sign` mints Cloudinary-signed upload credentials; the browser (`components/UploadDiagnosticForm.tsx`, via `XMLHttpRequest` for real progress events) POSTs the video bytes straight to Cloudinary. Our server never sees the file. |
 | `@anthropic-ai/sdk` was pinned to `^0.32.1` from training-data memory rather than checked against the registry — nearly 100 minor versions stale. Its old types don't export `ContentBlockParam`, the exact vision-input type the Upload Diagnostic needed. | `tsc --noEmit`: `'Anthropic' has no exported member named 'ContentBlockParam'`. `npm view @anthropic-ai/sdk version` -> real latest is `0.126.0`. | Bumped to `^0.126.0`, reinstalled, re-typechecked/built/linted clean against the new types (which do export `ContentBlockParam`, and whose `Model` union includes `'claude-sonnet-5'` as a named literal — confirms that model id was correct all along). `@clerk/nextjs`, `stripe`, and `svix` are each a major version behind too (checked via the same `npm view` sweep) but not currently broken by it — deliberately not bumped in this pass; see `docs/VIRALENGINE_ROADMAP.md`. |
 | One user could pass another user's (or any public) Cloudinary `publicId` to the diagnostic route and get it analyzed on their own quota. | Code-review of the route before shipping, not a live incident. | `app/api/analyze/upload/route.ts` refuses any `publicId` outside the caller's own `viralengine/uploads/<clerk id>/` prefix (403) before spending a Claude call on it, and re-fetches the asset's real duration from Cloudinary's Admin API rather than trusting the client's claim. |
+| `mem0ai`'s `SearchMemoryOptions` type doesn't have a `userId` field the way `AddMemoryOptions` does (`add()` and `search()` scope users differently) — a plausible guess that matched `add()`'s shape didn't compile for `search()`. | `tsc --noEmit`: `Object literal may only specify known properties, and 'userId' does not exist in type 'SearchMemoryOptions'`. | Read the shipped `node_modules/mem0ai/dist/index.d.ts` directly instead of guessing twice: `search()` scopes by `filters: {AND: [{user_id: ...}]}`, matching the pattern already documented in the Mem0 MCP connector's own tool descriptions. Fixed `lib/mem0.ts` accordingly. |
+| Mem0 install initially failed outright: `mem0ai@3.1.8` declares an optional peer dependency on `@anthropic-ai/sdk@^0.40.1`, which our already-bumped `^0.126.0` doesn't satisfy (0.x caret ranges are patch-only). | `npm install mem0ai`: `ERESOLVE ... peerOptional @anthropic-ai/sdk@"^0.40.1"`. | Installed with `--legacy-peer-deps` — safe here since the conflicting peer is optional and unused (we only call `mem0ai`'s plain `MemoryClient.add`/`search`, none of its Anthropic-specific helpers). |
+| A creator's very first script (or any request during a real Mem0 outage) has no prior-voice memory to retrieve — without an explicit signal, the LLM could plausibly claim to be "staying consistent with your established style" when nothing was actually retrieved. | Read through `generateScript()`'s prompt construction before shipping, not a live incident. | `lib/anthropic.ts`'s system prompt branches on `hasMemory` and explicitly forbids claiming consistency with a style that wasn't actually provided when no memories were found. `Storyboard.memory_context_used` carries the same signal into the UI. |
 
 Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
-`npm run build` (all 19 routes compile), `npm run lint` (clean except the
-2 pre-existing ViralVision findings above), and live `next dev` passes —
-`GET /` -> 200, `GET /dashboard/{analyze,deep-dive,upload}` unauthenticated
+`npm run build` (all 21 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings above — plus one real finding in our
+own new code, an unescaped apostrophe in `ScriptGeneratorForm.tsx`,
+caught and fixed the same run), and live `next dev` passes — `GET /` ->
+200, `GET /dashboard/{analyze,deep-dive,upload,script}` unauthenticated
 -> 307 to `/sign-in`, `POST /api/{analyze/url,creators/deep-dive,
-uploads/sign,analyze/upload}` unauthenticated -> 401 JSON, `GET /sign-in`
--> 200.
+uploads/sign,analyze/upload,generate/script}` unauthenticated -> 401
+JSON, `GET /sign-in` -> 200.
 
 ---
 

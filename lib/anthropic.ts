@@ -1,5 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ViralGapAnalysis, TimelineRecommendation, GrowthBlueprint, UploadDiagnosis } from '@/lib/types';
+import type {
+  ViralGapAnalysis,
+  TimelineRecommendation,
+  GrowthBlueprint,
+  UploadDiagnosis,
+  Storyboard,
+  ScriptScene,
+} from '@/lib/types';
 
 let cached: Anthropic | null = null;
 
@@ -481,5 +488,123 @@ export async function generateUploadDiagnosis(params: {
       frames_analyzed: params.frames.length,
     },
     timeline_recommendations: input.timeline_recommendations,
+  };
+}
+
+const SCRIPT_TOOL_NAME = 'submit_storyboard';
+
+const SCRIPT_TOOL: Anthropic.Tool = {
+  name: SCRIPT_TOOL_NAME,
+  description:
+    'Submit the structured scene-by-scene storyboard: spoken hook, per-scene visual action / ' +
+    'dialogue / audio-SFX cue / retention-loop note, and a closing CTA.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'A short, punchy working title for this script.' },
+      spoken_hook: {
+        type: 'string',
+        description: 'The opening line, readable aloud in under 3 seconds (roughly 8-10 words max).',
+      },
+      scenes: {
+        type: 'array',
+        minItems: 2,
+        items: {
+          type: 'object',
+          properties: {
+            scene_number: { type: 'number' },
+            visual_action: { type: 'string', description: 'What the camera/creator physically does or shows.' },
+            dialogue_or_vo: { type: 'string', description: 'Spoken line or voiceover for this scene.' },
+            audio_sfx_cue: { type: 'string', description: 'Music/sound-effect cue, or "none" if silent.' },
+            retention_loop_note: {
+              type: 'string',
+              description: 'Why a viewer keeps watching past this scene specifically.',
+            },
+          },
+          required: ['scene_number', 'visual_action', 'dialogue_or_vo', 'audio_sfx_cue', 'retention_loop_note'],
+        },
+      },
+      cta: { type: 'string', description: 'The closing call-to-action line.' },
+    },
+    required: ['title', 'spoken_hook', 'scenes', 'cta'],
+  },
+};
+
+function buildScriptSystemPrompt(hasMemory: boolean): string {
+  return `You are ViralEngine's Algorithmic Script & Storyboard Generator, writing for short-form
+video (TikTok, YouTube Shorts, Facebook Reels).
+
+Structure every script exactly as: a spoken hook readable in under 3 seconds, then 2-6 scenes each
+with a visual action, dialogue/voiceover, an audio/SFX cue, and a note on why that specific scene
+keeps the viewer watching (the retention loop), then a single closing CTA line. This mirrors the
+format of videos that actually go viral on these platforms, not generic ad copy.
+
+${
+  hasMemory
+    ? "Below are real memories ViralEngine has previously recorded about this creator's voice and " +
+      'tone from their past scripts. Write in a way that is consistent with them — do not contradict ' +
+      'an established style choice without a good reason tied to this specific prompt.'
+    : 'No prior voice/tone memory exists for this creator yet (this may be their first script, or ' +
+      'memory retrieval was unavailable) — write from the prompt and any tone parameters given, and ' +
+      'do not claim to be matching an established style that was not actually provided.'
+}
+
+Call submit_storyboard exactly once with the complete storyboard.`;
+}
+
+export interface ScriptResult {
+  title: string;
+  storyboard: Storyboard;
+}
+
+export async function generateScript(params: {
+  prompt: string;
+  targetPlatform: string | null;
+  toneParameters: Record<string, unknown>;
+  creatorMemories: string[];
+}): Promise<ScriptResult> {
+  const anthropic = getAnthropic();
+  const hasMemory = params.creatorMemories.length > 0;
+
+  const userContent =
+    `Prompt: ${params.prompt}\n` +
+    `Target platform: ${params.targetPlatform ?? '(unspecified)'}\n` +
+    `Tone parameters: ${JSON.stringify(params.toneParameters)}\n\n` +
+    (hasMemory
+      ? `Creator voice/tone memories:\n${params.creatorMemories.map((m) => `- ${m}`).join('\n')}`
+      : 'Creator voice/tone memories: (none found)');
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 4096,
+    system: buildScriptSystemPrompt(hasMemory),
+    tools: [SCRIPT_TOOL],
+    tool_choice: { type: 'tool', name: SCRIPT_TOOL_NAME },
+    messages: [{ role: 'user', content: userContent }],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === SCRIPT_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected storyboard.');
+  }
+
+  const input = toolUse.input as {
+    title: string;
+    spoken_hook: string;
+    scenes: ScriptScene[];
+    cta: string;
+  };
+
+  return {
+    title: input.title,
+    storyboard: {
+      spoken_hook: input.spoken_hook,
+      scenes: input.scenes,
+      cta: input.cta,
+      memory_context_used: hasMemory,
+    },
   };
 }
