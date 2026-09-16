@@ -1,12 +1,11 @@
 """Viral hook analyzer & script optimizer: rewrites a raw script for a
 disruptive 0-3s hook, fast pacing, and platform-appropriate word density.
 """
-import json
-from typing import Any, Dict, List
+from typing import List
 
 from pydantic import BaseModel, Field
 
-from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
+from app.core.llm import generate_structured
 
 
 class ScriptOptimizationReport(BaseModel):
@@ -43,13 +42,4 @@ Execution Rules:
 4. Output strictly valid JSON matching keys: original_input, optimized_script, hook_score,
    hook_rationale, target_platform, estimated_duration_seconds, pacing_wpm, retention_triggers.
 """
-    # No `temperature`: sampling parameters are rejected with a 400 on
-    # claude-opus-5 and the rest of the current model family.
-    response = await get_anthropic_client().messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    data: Dict[str, Any] = json.loads(extract_json_block(response.content[0].text))
-    return ScriptOptimizationReport(**data)
+    return await generate_structured(prompt, ScriptOptimizationReport, max_tokens=1500)

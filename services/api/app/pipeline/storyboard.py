@@ -1,12 +1,11 @@
 """AI storyboard generation: breaks an optimized script into short,
 fast-cut scenes with a visual-direction prompt for B-roll matching.
 """
-import json
 from typing import List
 
 from pydantic import BaseModel, Field
 
-from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
+from app.core.llm import generate_structured
 
 
 class StoryboardScene(BaseModel):
@@ -18,6 +17,15 @@ class StoryboardScene(BaseModel):
     text_overlay: str | None = None
     vibe: str
 
+
+class _StoryboardResult(BaseModel):
+    """Top-level object wrapper.
+
+    JSON Schema constrained decoding needs an object at the root; the
+    callers still get a plain list of scenes.
+    """
+
+    scenes: List[StoryboardScene]
 
 async def generate_storyboard_ai(
     brand_context: str,
@@ -40,13 +48,6 @@ Rules:
 Output strictly valid JSON as an array of scene objects with keys:
 scene_num, duration_seconds, voiceover, visual_direction, camera_motion, text_overlay, vibe.
 """
-    # No `temperature`: sampling parameters are rejected with a 400 on
-    # claude-opus-5 and the rest of the current model family.
-    response = await get_anthropic_client().messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=2500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    scenes_raw = json.loads(extract_json_block(response.content[0].text))
-    return [StoryboardScene(**scene) for scene in scenes_raw]
+    # Constrained decoding needs an object at the top level, so the scene
+    # list is wrapped rather than returned bare.
+    return (await generate_structured(prompt, _StoryboardResult, max_tokens=2500)).scenes

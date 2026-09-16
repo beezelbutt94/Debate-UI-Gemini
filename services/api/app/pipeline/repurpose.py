@@ -10,7 +10,7 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from app.core.anthropic_client import ANTHROPIC_MODEL, extract_json_block, get_anthropic_client
+from app.core.llm import generate_structured
 
 
 class ExtractedClipCandidate(BaseModel):
@@ -22,6 +22,11 @@ class ExtractedClipCandidate(BaseModel):
     virality_rationale: str
     confidence_score: float = Field(..., ge=0.0, le=1.0)
 
+
+class _ClipCandidates(BaseModel):
+    """Top-level object wrapper; see _StoryboardResult for why."""
+
+    candidates: List[ExtractedClipCandidate]
 
 class LongFormRepurposingEngine:
     def __init__(self, whisper_model_size: str = "medium", device: str = "cpu"):
@@ -48,16 +53,10 @@ Transcript Data:
 Output strictly valid JSON as an array of objects with keys:
 clip_id, start_second, end_second, duration, hook_text, virality_rationale, confidence_score.
 """
-        # No `temperature`: sampling parameters are rejected with a 400 on
-        # claude-opus-5 and the rest of the current model family.
-        response = await get_anthropic_client().messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=2500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        candidates = json.loads(extract_json_block(response.content[0].text))
-        return [ExtractedClipCandidate(**c) for c in candidates]
+        # Constrained decoding needs an object at the top level, so the
+        # candidate list is wrapped rather than returned bare.
+        result = await generate_structured(prompt, _ClipCandidates, max_tokens=2500)
+        return result.candidates
 
     def extract_lossless_subclip(self, source_video_path: str, start_sec: float, duration_sec: float, output_subclip_path: str) -> str:
         cmd = [

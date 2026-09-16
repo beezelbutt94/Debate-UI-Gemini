@@ -5,6 +5,7 @@ Run locally with `uvicorn app.main:app --reload` from `services/api/`
 in `services/api/README.md`).
 """
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from app.middleware.rate_limit import SlidingWindowRateLimiterMiddleware
@@ -57,3 +58,18 @@ for router in (
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/healthz/llm")
+async def healthz_llm():
+    """Whether local inference is actually usable right now.
+
+    Separate from /healthz on purpose: the API serves plenty of routes that
+    never touch the model, so a missing model should not mark the whole
+    service unhealthy and pull it out of rotation. Returns 503 so a probe
+    scoped to the generation workers can still fail on it.
+    """
+    from app.core.llm import healthcheck
+
+    result = await healthcheck()
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)
