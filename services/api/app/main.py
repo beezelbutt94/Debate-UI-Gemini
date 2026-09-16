@@ -73,3 +73,12 @@ async def healthz_llm():
 
     result = await healthcheck()
     return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+
+
+@app.get("/healthz/tts")
+def healthz_tts():
+    """Whether local speech synthesis is usable right now."""
+    from app.core.tts import healthcheck as tts_healthcheck
+
+    result = tts_healthcheck()
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)

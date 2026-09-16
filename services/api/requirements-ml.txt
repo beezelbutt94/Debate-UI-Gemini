@@ -11,3 +11,9 @@ mediapipe==0.10.14
 pgvector==0.3.5
 pynvml==11.5.3
 livekit-server-sdk==0.7.0
+
+# Local text-to-speech (app/core/tts.py), replacing the hosted ElevenLabs
+# call. Apache-2.0, 54 voices, faster than realtime on CPU. Needs the
+# espeak-ng system package for phonemization.
+kokoro==0.9.4
+soundfile==0.12.1

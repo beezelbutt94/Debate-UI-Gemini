@@ -1,6 +1,11 @@
-"""Presigned S3 (or Supabase/MinIO S3-compatible) multipart upload
-sessions, so large raw video sources never transit through this API
-process itself.
+"""Presigned multipart upload sessions against any S3-compatible store, so
+large raw video sources never transit through this API process itself.
+
+Deliberately vendor-neutral: set S3_ENDPOINT_URL and it targets a
+self-hosted store (SeaweedFS, Garage, Ceph RGW), Supabase Storage, or R2;
+leave it unset for AWS. Note that MinIO's community server was archived in
+April 2026 and no longer receives security patches -- SeaweedFS and Garage
+are the maintained self-hosted options.
 """
 import os
 from typing import Any, Dict, List
@@ -24,15 +29,42 @@ _s3_client = None
 def _client():
     global _s3_client
     if _s3_client is None:
+        endpoint = os.getenv("S3_ENDPOINT_URL") or None
+        # Virtual-host addressing (bucket.host) needs a wildcard DNS record,
+        # which a self-hosted store on an IP or single hostname does not
+        # have -- every request 404s or resolves nowhere. Path addressing
+        # (host/bucket) is what those expect, so the style follows the
+        # endpoint rather than being hardcoded to AWS's.
+        addressing = "path" if endpoint else "virtual"
         _s3_client = boto3.client(
             "s3",
             region_name=S3_REGION,
-            endpoint_url=os.getenv("S3_ENDPOINT_URL"),  # set for Supabase Storage / MinIO compatibility
+            endpoint_url=endpoint,
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+            config=Config(signature_version="s3v4", s3={"addressing_style": addressing}),
         )
     return _s3_client
+
+
+def public_url_for(storage_key: str) -> str:
+    """Browser-reachable URL for an uploaded object.
+
+    S3_PUBLIC_BASE_URL wins when the objects sit behind a CDN or reverse
+    proxy. Otherwise this mirrors the addressing style the client is
+    actually using -- the previous hardcoded amazonaws.com URL was simply
+    wrong for every non-AWS backend, handing callers a link to a bucket
+    that does not exist.
+    """
+    base = os.getenv("S3_PUBLIC_BASE_URL")
+    if base:
+        return f"{base.rstrip('/')}/{storage_key}"
+
+    endpoint = os.getenv("S3_ENDPOINT_URL")
+    if endpoint:
+        return f"{endpoint.rstrip('/')}/{S3_BUCKET}/{storage_key}"
+
+    return f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{storage_key}"
 
 
 class InitiateUploadRequest(BaseModel):
@@ -76,7 +108,7 @@ def initiate_multipart_upload(payload: InitiateUploadRequest, current_user: User
             "upload_id": upload_id,
             "key": storage_key,
             "parts": parts,
-            "final_resource_url": f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{storage_key}",
+            "final_resource_url": public_url_for(storage_key),
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to initiate S3 session: {exc}") from exc

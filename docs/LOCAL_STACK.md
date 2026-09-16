@@ -113,3 +113,96 @@ model, so a missing model should not pull the whole service out of rotation.
 `storyboard` and `repurpose` return arrays, but constrained decoding needs an
 object at the root. `_StoryboardResult.scenes` and `_ClipCandidates.candidates`
 wrap them; both callers still get a plain list.
+
+---
+
+# Phase 2 — hosted TTS and storage → local
+
+**Status:** complete and verified.
+
+## Text-to-speech: ElevenLabs → local
+
+`app/core/tts.py` replaces the ElevenLabs HTTP call. Backends are pluggable
+because the licences differ in ways that matter commercially:
+
+| Backend | Licence | Cloning | Notes |
+|---|---|---|---|
+| **kokoro** (default) | Apache-2.0 | no | 54 preset voices, faster than realtime on CPU |
+| **chatterbox** | MIT | yes, ~5s reference | when a creator wants their own voice |
+| **piper** | MIT | no | tiny and very fast, lower fidelity |
+
+**Deliberately not offered: XTTS-v2.** It is the best-known open cloning
+model, but its weights ship under the Coqui Public Model License, which is
+**non-commercial** — shipping it in a paid product would be a licence
+violation. Chatterbox covers the same need under MIT.
+
+`AvatarPipeline` lost its `stability` / `similarity_boost` arguments. Those
+were ElevenLabs-specific and no local backend has an equivalent; keeping them
+as silently-ignored parameters would have been worse than removing them.
+
+Verified by generating real audio (CPU, kokoro):
+
+```
+PASS  synthesis returns a path
+PASS  file is non-trivially sized              [330044 bytes]
+PASS  decodes as real audio                    [6.9s @ 24000Hz, 1ch]
+PASS  duration is plausible for the text       [6.9s from 19 words]
+PASS  empty text rejected                      [code=empty_input]
+PASS  unknown backend rejected                 [code=unknown_backend]
+6/6 passed
+```
+
+espeak-ng is a hard system dependency for kokoro's phonemizer. Without it you
+get a confusing failure deep inside the phonemizer, so `tts.py` checks for the
+binary up front and returns `espeak_missing` with the apt line.
+
+## Storage: any S3-compatible store
+
+**MinIO is not the answer any more.** Its community server was archived in
+April 2026 — no features, no compatibility updates, no security patches. The
+maintained self-hosted options are **SeaweedFS** (Apache-2.0, adopted by
+Kubeflow Pipelines as its default after MinIO's retreat) and **Garage**
+(AGPL-3.0, single Rust binary).
+
+Rather than swap one hardcoded vendor for another, `storage.py` is now
+endpoint-agnostic. Two real bugs were blocking that:
+
+1. **`addressing_style` was hardcoded to `"virtual"`.** Virtual-host
+   addressing (`bucket.host`) needs a wildcard DNS record, which a
+   self-hosted store on an IP or single hostname does not have — every
+   request resolves nowhere. It now follows the endpoint: `path` when
+   `S3_ENDPOINT_URL` is set, `virtual` for AWS.
+2. **The returned object URL was hardcoded to `amazonaws.com`.** For any
+   non-AWS backend that handed callers a link to a bucket that does not
+   exist. `public_url_for()` now derives it, with `S3_PUBLIC_BASE_URL` as an
+   override for CDN/reverse-proxy setups.
+
+Verified against a real SeaweedFS S3 gateway with a full presigned multipart
+round-trip:
+
+```
+PASS  addressing style follows endpoint        [path]
+PASS  public URL is not hardcoded to AWS       [http://127.0.0.1:8333/evalbucket/...]
+PASS  multipart upload initiates
+PASS  presigned part PUTs accepted             [2 parts]
+PASS  reassembled object matches byte-for-byte [5243904 bytes]
+PASS  cleanup
+6/6 passed
+```
+
+## Health
+
+`/healthz/tts` joins `/healthz/llm`, both separate from `/healthz` for the
+same reason — most routes touch neither.
+
+```
+/healthz      -> {"status":"ok"}                                        200
+/healthz/llm  -> {"ok":true,"model":"qwen3:8b","vram_mb":16384}         200
+/healthz/tts  -> {"ok":true,"backend":"kokoro","default_voice":"af_heart"} 200
+```
+
+## Remaining paid dependencies after Phase 2
+
+Stripe only (kept deliberately — you want revenue, and card acceptance has no
+self-hosted equivalent without PCI-DSS). The ad-platform gateway is still
+present and comes out in Phase 3.
