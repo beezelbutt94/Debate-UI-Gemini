@@ -173,6 +173,7 @@ export interface ScheduledPostRow {
   media_urls: string[];
   caption: string | null;
   status: 'draft' | 'scheduled' | 'published' | 'failed';
+  publish_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -183,4 +184,14 @@ export interface CalendarSlot {
   platform: Platform;
   topic_suggestion: string;
   reasoning: string; // grounded in real search results / this creator's own cadence data
+}
+
+export type ConnectablePlatform = 'youtube' | 'tiktok' | 'facebook' | 'canva';
+
+// Never includes the underlying token -- those stay in Supabase Vault,
+// reachable only via the service-role get_platform_connection_secrets() RPC.
+export interface PlatformConnectionSummary {
+  platform: ConnectablePlatform;
+  external_account_label: string | null;
+  connected_at: string;
 }
