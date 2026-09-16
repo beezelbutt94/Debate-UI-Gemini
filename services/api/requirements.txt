@@ -17,7 +17,7 @@ requests==2.32.3
 # 1.x: 0.34.x constructs its HTTP client with an `httpx` kwarg that modern
 # httpx removed, so it raises TypeError on import against a current httpx.
 anthropic==1.6.0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 dnspython==2.6.1
 kubernetes==31.0.0
 prometheus-client==0.21.0
