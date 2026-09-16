@@ -113,6 +113,32 @@ it exercises the real database rather than a mock. Getting past this
 ceiling needs the user to supply real keys; see `.env.example` and
 `README.md`'s "Local setup" for exactly which ones.
 
+## GitHub Actions CI had never actually passed
+
+Opening the PR for the above and looking at its real GitHub Actions
+checks (not just the local sandbox verification every feature's commit
+message has been citing) surfaced that `.github/workflows/ci.yml` has
+failed on **every run since the Mem0 feature landed** — every PR in this
+repo's history, all the way back, confirmed via `list_workflow_runs`.
+"Local `npm run build` passes" was never the same claim as "CI passes,"
+and nothing had checked the second one until now.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `npm ci` (what CI runs, unlike an interactive `npm install`) fails outright with `ERESOLVE`: `mem0ai@3.1.8`'s optional peer `@anthropic-ai/sdk@^0.40.1` conflicts with the root's real `^0.126.0`. `--legacy-peer-deps` was used locally when `mem0ai` was first installed (documented above), but that flag was never persisted anywhere -- a fresh `npm ci` in CI has no way to know to use it. | `npm ci` in the `build (22.x)`/`build (24.x)` jobs: `npm error ERESOLVE could not resolve ... peerOptional @anthropic-ai/sdk@"^0.40.1" from mem0ai@3.1.8`. Reproduced locally with `rm -rf node_modules && npm ci` (no flags). | Added `.npmrc` with `legacy-peer-deps=true` at the repo root, so both local installs and CI resolve the same way without a manual flag. Re-verified: `rm -rf node_modules && npm ci` succeeds with 0 vulnerabilities, no `.npmrc` present before this fix. |
+| Even past that, `npm run build` in CI would still fail: the workflow sets no env vars, and `ClerkProvider` needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at build time (documented above for the local case) -- the workflow predates Clerk being added to this app and was never updated. | Reproduced locally: `npm run build` with no env vars set fails prerendering `/_not-found` the same way it did the first time this was hit, several features ago. | Added a syntactically-valid placeholder `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` to the `Build` step's `env:` in `ci.yml` -- safe to check in since publishable keys are meant to be public (embedded in the client bundle), it only needs to satisfy Clerk's key-format validation, not authenticate anything. Re-verified: `npm run build` with only that one env var set completes and emits all 34 routes. |
+
+Not fixed, and correctly so -- pre-existing on `main`, not this PR's:
+**`Workers Builds: debate-ui-gemini`** (a Cloudflare Pages/Workers Git
+integration check) fails on every commit in this repo's history,
+confirmed by checking PR #7's checks before any of this session's changes
+existed. There is no `wrangler.toml` or Cloudflare Pages config anywhere
+in this repo for a code change to fix -- it's an external Cloudflare
+project pointed at this repo, configured outside it. `Supabase Preview`
+is `skipped`, not failing, and points at a different Supabase project ref
+than the one this app actually uses -- also external configuration, not
+a red check this PR owns.
+
 ---
 
 A record of actually running everything in this repo — the Next.js app in a
