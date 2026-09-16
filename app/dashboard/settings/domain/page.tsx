@@ -93,6 +93,7 @@ export default function WorkspaceDomainSettingsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDomainStatus();
   }, [fetchDomainStatus]);
 
