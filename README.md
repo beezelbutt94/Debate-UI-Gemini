@@ -1,9 +1,10 @@
 # ViralEngine
 
-A monetization-enabled SaaS platform for content creators. Paste a TikTok,
-YouTube Short, or Facebook Reel URL and the Viral Gap Analyzer scores it
-against the hook and retention benchmarks that separate viral videos from
-the rest, then returns a timestamped action plan for what's missing.
+A monetization-enabled SaaS platform for content creators, covering all 7
+features of the original spec: analyze a video URL or an uploaded file,
+deep-dive an account, generate a script, get contextual tool
+recommendations, spy on competitors, and plan a weekly posting calendar —
+each one real end to end, none of them stubs.
 
 This repo previously shipped a different product under this name
 (ViralSync — paid ad amplification via TikTok Spark Ads/Google Ads). That
@@ -17,7 +18,8 @@ record if you're archaeology-minded.
 - Supabase (Postgres, RLS-enabled, Clerk wired in as a third-party auth
   provider)
 - Stripe (Creator/Pro/Studio subscription billing, quota-gated usage)
-- Tavily (`/extract`) for URL content extraction
+- Tavily (`/extract` and `/search`) for URL content extraction and
+  real-time topic/trend research
 - YouTube Data API v3 for real channel/upload stats
 - Cloudinary (signed direct-to-cloud video upload, frame + waveform
   extraction via delivery transformations)
@@ -27,7 +29,7 @@ record if you're archaeology-minded.
 
 ## What's built
 
-Five features, real end to end, not stubs:
+All 7 features from the original spec, real end to end, not stubs:
 
 ### Viral Gap Analyzer
 
@@ -180,6 +182,72 @@ Five features, real end to end, not stubs:
    automation is intentionally not built or stubbed here; see
    `docs/VIRALENGINE_ROADMAP.md`.
 
+### Competitor Espionage & Gap Engine
+
+1. `app/dashboard/competitors/page.tsx` +
+   `components/CompetitorTrackerForm.tsx` — track 3-5 competitor handles
+   (YouTube/TikTok/Instagram) plus an optional niche, get outlier topics,
+   topics missing from your own work, audience sentiment gaps, and
+   untapped keyword clusters.
+2. `app/api/competitors/track/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other real-analysis
+     features (unlike the Tool Suite Hub, this one does analyze new
+     external content, so it's quota-gated like the first three).
+   - Reuses `fetchYoutubeChannelSnapshot` (real YouTube Data API v3) and
+     `extractUrlContent` (Tavily) exactly as Deep-Dive does, including the
+     same per-competitor graceful-failure handling — one bad handle among
+     five doesn't sink the whole report.
+   - **New**: `lib/tavily.ts`'s `searchTopics()`, a real Tavily `/search`
+     call (distinct from `/extract`) grounding "untapped keyword
+     clusters" in actual current search results, not invented trends.
+   - Pulls this creator's own recent reports/scripts (via the same
+     `lib/digest.ts` digest builders the Tool Suite Hub uses — extracted
+     into a shared module rather than duplicated a third time) so Claude
+     (`generateCompetitorGapAnalysis`) can identify what competitors
+     cover that this creator's own work doesn't, not just describe the
+     competitors in isolation.
+   - Persists the tracked handle list into `creators_profiles.connected_metrics`
+     and writes to `audit_reports` (`source_type: 'competitors'` — added
+     to that column's check constraint via migration).
+
+### Algorithmic Scheduling & Publishing Planner
+
+1. `app/dashboard/schedule/page.tsx` + `components/ScheduleCalendar.tsx`
+   — a list of your `scheduled_posts`, a "Generate this week" button, an
+   inline datetime picker per row for rescheduling, and delete.
+2. Plain CRUD, real and quota-free: `app/api/schedule/route.ts` (list,
+   create) and `app/api/schedule/[id]/route.ts` (update, delete — both
+   scoped to `id` **and** `user_id` together, so one user can never touch
+   another's calendar entry). Creating or editing a slot by hand doesn't
+   call an LLM, so it isn't quota-gated like the rest of this app.
+3. The one AI-assisted piece, and the only quota-gated route here:
+   `app/api/schedule/generate/route.ts`.
+   - Real Tavily `/search` results for current best-time-to-post
+     research, plus a digest of this creator's own recent reports (via
+     `lib/digest.ts`, reused a third time), sent to Claude
+     (`generateWeeklyCalendar`) to produce 5-10 suggested slots spread
+     across platforms and days.
+   - Each slot's `day_of_week`/`time_local` is turned into a real
+     `publish_at` timestamp (`nextOccurrence()`) and inserted as a
+     `draft` `scheduled_posts` row.
+   - **Known limitation, not hidden**: there's no per-user timezone
+     column in this schema yet, so `nextOccurrence()` resolves against
+     the server's own clock rather than each creator's actual timezone —
+     the spec's "audience timezone activity via Metricool" needs a
+     per-user Metricool OAuth connection this pass doesn't build (the
+     same category of gap as the Tool Suite Hub's four services).
+4. **What's deliberately not built**: actually *publishing* a
+   `scheduled_posts` row to a live platform at its `publish_at` time
+   needs two things this pass doesn't have — a cron/queue trigger (Vercel
+   Cron or a Supabase scheduled function) and a per-user OAuth connection
+   to each platform's publishing API. Building the data model and the
+   generation logic without faking the publish step is the same honest
+   split ViralSync's own OAuth-flow-real/ad-placement-stub pattern used,
+   one product ago. "Drag-and-drop rescheduling" from the spec is real as
+   a datetime-picker edit calling the same `PATCH` endpoint a drag
+   interaction would; an actual drag gesture wasn't built — a UI-only
+   scoping choice, not a backend limitation.
+
 ### Shared platform pieces
 
 - Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
@@ -201,13 +269,24 @@ issues this surfaced and how each was fixed — including two genuine
 Next.js 16 breaking changes (`middleware.ts` → `proxy.ts`, `next lint`
 removed) that don't match most training data.
 
-## What's not built yet
+## What's genuinely not built
 
-Competitor Espionage Engine and the Scheduling/Publishing Planner. See
-**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
-(already created, see below) and API routes each one needs, and which
-already-verified API contracts (Metricool, Semrush, Ahrefs) to build
-against.
+All 7 features are shipped, but two categories of "actually drive a
+third-party platform on a user's behalf" were deliberately never
+attempted or stubbed, across every feature that touched them:
+
+- **Per-user OAuth to Descript, OpusClip, HyperFrames, Canva, or
+  Metricool.** Each has a real API, but each needs its own per-creator
+  account connection this pass doesn't build — the Tool Suite Hub
+  recommends and deep-links instead of driving them; the Scheduling
+  Planner plans instead of publishing.
+- **Actual publish-time execution.** No cron/queue trigger exists to
+  turn a `scheduled_posts` row into a live post at its `publish_at` time.
+
+Both are the same honest split ViralSync's own
+OAuth-flow-real/ad-placement-stub pattern already used in this repo, one
+product ago — see `docs/VIRALENGINE_ROADMAP.md` for what each would
+actually take to build.
 
 ## Local setup
 
@@ -244,9 +323,10 @@ once step 4 above is done):
 - `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
 - `creators_profiles` — niche, per-platform handles, cached connected
   metrics, Mem0 agent key.
-- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive, and
-  Upload Diagnostic), JSONB payload + viral score + timestamped
-  recommendations.
+- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive,
+  Upload Diagnostic, Competitor Espionage), JSONB payload + viral score +
+  timestamped recommendations. `source_type` grew a fourth value
+  (`competitors`) beyond the original three via migration.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.
 - `subscriptions` — Stripe plan tier + atomic quota usage counters.

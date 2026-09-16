@@ -1,12 +1,17 @@
 # ViralEngine roadmap
 
-What's built (Viral Gap Analyzer — see README.md) vs. what's left of the
-original 7-feature spec. Keep this file in sync with actual progress:
-update a row the moment its feature ships, don't batch it.
+All 7 features of the original spec are shipped — see README.md for what
+each one does. This file is now a record of how each one actually got
+built vs. what the roadmap originally guessed before it existed, kept for
+whoever touches this code next: several early guesses here turned out
+wrong once actually investigated (vidIQ/Metricool's real API access,
+Semrush/Ahrefs's domain-vs-handle mismatch), and the corrected reasoning
+is worth more than the original guess. Read `docs/DEBUG_RUN.md` for the
+concrete bugs/fixes each feature surfaced.
 
 Every table named below already exists —
 `supabase/migrations/0001_viralengine_init.sql` was written to cover the
-whole spec's schema up front, not just the one shipped feature.
+whole spec's schema up front, not just the one feature it started with.
 
 ## Status
 
@@ -17,8 +22,29 @@ whole spec's schema up front, not just the one shipped feature.
 | 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
 | 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
 | 5 | Creator Tool Suite Hub | **Shipped** — see README.md |
-| 6 | Competitor Espionage & Gap Engine | Not started |
-| 7 | Algorithmic Scheduling & Publishing Planner | Not started |
+| 6 | Competitor Espionage & Gap Engine | **Shipped** — see README.md |
+| 7 | Algorithmic Scheduling & Publishing Planner | **Shipped** — see README.md |
+
+## What would come after this spec, if it kept going
+
+Not part of the original 7, but the honest next layer given what shipped:
+
+1. **Per-user OAuth connections** to Descript, OpusClip, HyperFrames,
+   Canva, and Metricool — the single biggest category of "not real" left
+   anywhere in this app. Each is its own OAuth app registration, consent
+   screen, and token-storage problem (mirroring what `lib/oauth/` used to
+   handle for ViralSync's TikTok/Google Ads flow, before the pivot).
+   Unlocks: the Tool Suite Hub actually driving a tool instead of linking
+   to it, and per-user audience-timezone data for the Scheduling Planner
+   instead of server-clock-relative suggestions.
+2. **A publish-time trigger** (Vercel Cron or a Supabase scheduled
+   function) that turns a `scheduled_posts` row into an actual post via
+   each platform's publishing API — needs (1) to exist first.
+3. **Per-user timezone storage.** `nextOccurrence()` in
+   `app/api/schedule/generate/route.ts` resolves against the server's own
+   clock today; a `timezone` column on `users` (populated from the
+   browser at signup) would let the Scheduling Planner compute real local
+   times per creator instead.
 
 ## 2. Creator Account Deep-Dive — shipped
 
@@ -157,33 +183,59 @@ quota-gated — it synthesizes over analyses the user already paid a quota
 unit for, rather than analyzing new external content, so gating it again
 would double-charge for the same underlying work.
 
-## 6. Competitor Espionage & Gap Engine
+## 6. Competitor Espionage & Gap Engine — shipped
 
-- **Route**: `app/api/competitors/track/route.ts` (new).
-- **Tables**: `creators_profiles.connected_metrics` (cache competitor
-  snapshots), new `audit_reports` rows or a dedicated table if the
-  4-competitor comparison payload outgrows a single JSONB column —
-  decide once real Semrush/Ahrefs payload sizes are known.
-- **Real API contracts**: Semrush MCP (`competitors_research`,
-  `organic_research`, `audience_research`) and Ahrefs MCP
-  (`site-explorer-organic-competitors`,
-  `social-media-channels`/`social-media-post-metrics`) are both live,
-  verified, self-serve APIs (unlike vidIQ/Metricool above, these two
-  vendors do sell direct API-key access, so a real fetch()-based
-  integration in the deployed app is plausible — confirm the specific
-  endpoint/pricing tier before committing to it). Tavily's `tavily_search`
-  covers the "untapped keyword clusters" / sentiment-gap research angle
-  using the same real, already-integrated API as `lib/tavily.ts`.
+Went a different direction than this section originally proposed.
+Semrush and Ahrefs's real, verified self-serve APIs are both
+domain/website-centric (`competitors_research`, `organic_research`,
+`site-explorer-organic-competitors`, ...) — genuinely real APIs, just not
+ones that take a TikTok or Instagram *handle* as input, which is what
+"track 3-5 competitor handles" actually requires. Rather than force a fit
+or commit to an unverified endpoint, this reused the exact same real data
+sources Deep-Dive already established for the same problem: YouTube Data
+API v3 (`fetchYoutubeChannelSnapshot`) for YouTube competitors, Tavily
+extraction for TikTok/Instagram. Semrush/Ahrefs stay a real option for a
+*future* website-centric competitor angle, not for handle-based social
+tracking — worth remembering if a later feature needs it.
 
-## 7. Algorithmic Scheduling & Publishing Planner
+New in this feature: `lib/tavily.ts`'s `searchTopics()`, wrapping the
+real Tavily `/search` endpoint (verified live, distinct from `/extract`)
+to ground "untapped keyword clusters" in actual current search results.
 
-- **Route**: `app/api/schedule/route.ts` (new, plain CRUD).
-- **Table**: `scheduled_posts` — already has `publish_at`, `media_urls`,
-  `platform`, `status` (`draft`/`scheduled`/`published`/`failed`).
-- **Real API contract**: Metricool MCP's `getBestTimeToPostByNetwork`,
-  `createScheduledPost` / `createScheduledPostForReview`,
-  `getScheduledPosts` are live and directly match this feature's spec.
-  Actual publish-time execution (turning a `scheduled_posts` row into a
-  live post) needs a cron/queue trigger this Next.js app doesn't have
-  yet — Vercel Cron or a Supabase scheduled function are the two
-  options; neither is wired up.
+Also extracted `lib/digest.ts` (`digestReport`/`digestScript`) out of the
+Tool Suite Hub route, since this feature needed the exact same
+"summarize a creator's own past reports/scripts into plain text" logic
+to compare against competitors — one shared implementation instead of a
+second copy, and it also fixed a latent bug: the Tool Suite Hub's inline
+version had no branch for `source_type: 'competitors'` and would have
+mis-cast that shape once this feature started writing rows, caught while
+refactoring rather than at runtime.
+
+`audit_reports.source_type`'s check constraint gained a fourth value,
+`'competitors'`, via a live `alter table` against the `unseen-reels`
+project (verified after with a `pg_constraint` query) and folded
+directly into `supabase/migrations/0001_viralengine_init.sql`'s `create
+table` statement as the source of truth for a fresh install, matching
+how every other schema change this session has been handled.
+
+## 7. Algorithmic Scheduling & Publishing Planner — shipped
+
+Metricool's `getBestTimeToPostByNetwork` (the tool this plan originally
+pointed at) answers the spec's "audience timezone activity" question
+directly *from this session's MCP connector* — but, same as vidIQ and
+Metricool's other endpoints back in feature 2, that's account-linked
+access, not a self-serve API key a deployed third-party server can call
+for an arbitrary end user. Rather than guess at an unverified direct
+integration, this used the same real substitute Deep-Dive and Competitor
+Espionage already established: `lib/tavily.ts`'s `searchTopics()` for
+real current best-time-to-post research, blended with the creator's own
+actual cadence data (via `lib/digest.ts`, now used by three features).
+
+Plain CRUD (`app/api/schedule/route.ts`, `app/api/schedule/[id]/route.ts`)
+came together exactly as planned — no surprises, no new packages. The one
+piece worth flagging for whoever builds feature set (1) in "what would
+come after this spec" above: `nextOccurrence()` computes real calendar
+math (next occurrence of a weekday + time within 7 days) but has nowhere
+to read a creator's actual timezone from, since that column doesn't
+exist yet — documented as a known limitation in README.md rather than
+quietly assumed away.

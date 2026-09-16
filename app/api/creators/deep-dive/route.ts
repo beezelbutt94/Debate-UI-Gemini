@@ -4,18 +4,13 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { fetchYoutubeChannelSnapshot } from '@/lib/youtube';
 import { extractUrlContent, TavilyRateLimitError } from '@/lib/tavily';
 import { generateGrowthBlueprint } from '@/lib/anthropic';
+import { buildAccountProfileUrl } from '@/lib/platform';
 import type { AuditReportRow, CreatorHandles, CreatorProfileRow, GrowthBlueprint } from '@/lib/types';
 
 interface DeepDiveRequestBody {
   niche?: string;
   handles?: CreatorHandles;
 }
-
-const PROFILE_URL_BUILDERS: Record<keyof CreatorHandles, (handle: string) => string> = {
-  youtube: (handle) => `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`,
-  tiktok: (handle) => `https://www.tiktok.com/@${handle.replace(/^@/, '')}`,
-  instagram: (handle) => `https://www.instagram.com/${handle.replace(/^@/, '')}/`,
-};
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -67,7 +62,7 @@ export async function POST(request: Request) {
         if (platform === 'youtube') {
           platformData.youtube = await fetchYoutubeChannelSnapshot(handle);
         } else {
-          const profileUrl = PROFILE_URL_BUILDERS[platform](handle);
+          const profileUrl = buildAccountProfileUrl(platform, handle);
           const extracted = await extractUrlContent(profileUrl);
           platformData[platform] = {
             profileUrl,
@@ -129,7 +124,7 @@ export async function POST(request: Request) {
     }
 
     const primaryHandle = handleEntries[0];
-    const primaryUrl = PROFILE_URL_BUILDERS[primaryHandle[0]](primaryHandle[1]);
+    const primaryUrl = buildAccountProfileUrl(primaryHandle[0], primaryHandle[1]);
 
     const { data: report, error: insertError } = await admin
       .from('audit_reports')

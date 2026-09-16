@@ -42,9 +42,9 @@ create trigger users_set_updated_at
 alter table public.users enable row level security;
 
 create policy "users_select_own" on public.users
-  for select using (id = (auth.jwt()->>'sub'));
+  for select using (id = ((select auth.jwt())->>'sub'));
 create policy "users_update_own" on public.users
-  for update using (id = (auth.jwt()->>'sub'));
+  for update using (id = ((select auth.jwt())->>'sub'));
 -- Insert/delete happen only via the service-role Clerk webhook handler
 -- (app/api/webhooks/clerk), which bypasses RLS — no client-facing
 -- insert/delete policy.
@@ -73,17 +73,18 @@ alter table public.creators_profiles enable row level security;
 
 create policy "creators_profiles_all_own" on public.creators_profiles
   for all
-  using (user_id = (auth.jwt()->>'sub'))
-  with check (user_id = (auth.jwt()->>'sub'));
+  using (user_id = ((select auth.jwt())->>'sub'))
+  with check (user_id = ((select auth.jwt())->>'sub'));
 
 -- ---------------------------------------------------------------------
--- audit_reports — Viral Gap Analyzer / Deep-Dive / Upload Diagnostic output
+-- audit_reports — Viral Gap Analyzer / Deep-Dive / Upload Diagnostic /
+-- Competitor Espionage output
 -- ---------------------------------------------------------------------
 create table public.audit_reports (
   id uuid primary key default gen_random_uuid(),
   user_id text not null references public.users(id) on delete cascade,
   creator_profile_id uuid references public.creators_profiles(id) on delete set null,
-  source_type text not null check (source_type in ('url', 'account', 'upload')),
+  source_type text not null check (source_type in ('url', 'account', 'upload', 'competitors')),
   source_url text,
   platform text check (platform in ('tiktok', 'youtube_shorts', 'facebook_reels')),
   viral_score numeric check (viral_score >= 0 and viral_score <= 100),
@@ -98,7 +99,7 @@ create index audit_reports_creator_profile_id_idx on public.audit_reports(creato
 alter table public.audit_reports enable row level security;
 
 create policy "audit_reports_select_own" on public.audit_reports
-  for select using (user_id = (auth.jwt()->>'sub'));
+  for select using (user_id = ((select auth.jwt())->>'sub'));
 -- Inserts happen server-side (service role) via /api/analyze/* after quota
 -- checks, never directly from the client.
 
@@ -118,13 +119,14 @@ create table public.scripts (
 );
 
 create index scripts_user_id_idx on public.scripts(user_id);
+create index scripts_creator_profile_id_idx on public.scripts(creator_profile_id);
 
 alter table public.scripts enable row level security;
 
 create policy "scripts_all_own" on public.scripts
   for all
-  using (user_id = (auth.jwt()->>'sub'))
-  with check (user_id = (auth.jwt()->>'sub'));
+  using (user_id = ((select auth.jwt())->>'sub'))
+  with check (user_id = ((select auth.jwt())->>'sub'));
 
 -- ---------------------------------------------------------------------
 -- scheduled_posts — content calendar
@@ -152,8 +154,8 @@ alter table public.scheduled_posts enable row level security;
 
 create policy "scheduled_posts_all_own" on public.scheduled_posts
   for all
-  using (user_id = (auth.jwt()->>'sub'))
-  with check (user_id = (auth.jwt()->>'sub'));
+  using (user_id = ((select auth.jwt())->>'sub'))
+  with check (user_id = ((select auth.jwt())->>'sub'));
 
 -- ---------------------------------------------------------------------
 -- subscriptions — Stripe plan tier + quota usage
@@ -179,7 +181,7 @@ create trigger subscriptions_set_updated_at
 alter table public.subscriptions enable row level security;
 
 create policy "subscriptions_select_own" on public.subscriptions
-  for select using (user_id = (auth.jwt()->>'sub'));
+  for select using (user_id = ((select auth.jwt())->>'sub'));
 -- Inserts/updates happen only via the service-role Clerk/Stripe webhook
 -- handlers.
 

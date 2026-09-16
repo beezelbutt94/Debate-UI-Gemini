@@ -7,6 +7,8 @@ import type {
   Storyboard,
   ScriptScene,
   SuiteTool,
+  CompetitorGapAnalysis,
+  CalendarSlot,
 } from '@/lib/types';
 
 let cached: Anthropic | null = null;
@@ -700,4 +702,173 @@ export async function generateToolRecommendations(digest: string): Promise<RawTo
 
   const input = toolUse.input as { recommendations: RawToolRecommendation[] };
   return input.recommendations;
+}
+
+const COMPETITOR_TOOL_NAME = 'submit_competitor_gap_analysis';
+
+const COMPETITOR_TOOL: Anthropic.Tool = {
+  name: COMPETITOR_TOOL_NAME,
+  description:
+    'Submit the structured Competitor Espionage & Gap Engine analysis: per-competitor summaries, ' +
+    'outlier topics, missing topics, audience sentiment gaps, and untapped keyword clusters.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      outlier_topics: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Top-performing content themes/formats the tracked competitors actually use.',
+      },
+      missing_topics: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "Topics competitors cover that this creator's own recent work does not.",
+      },
+      audience_sentiment_gaps: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Sentiment/complaint patterns visible in competitor content this creator could address better.',
+      },
+      untapped_keyword_clusters: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Grounded in the real search results provided, not invented.',
+      },
+    },
+    required: ['outlier_topics', 'missing_topics', 'audience_sentiment_gaps', 'untapped_keyword_clusters'],
+  },
+};
+
+const COMPETITOR_SYSTEM_PROMPT = `You are ViralEngine's Competitor Espionage & Gap Engine. You are given:
+1. Real per-competitor data snapshots (YouTube: official API stats; TikTok/Instagram: extracted public
+   profile page content) for 3-5 tracked competitors.
+2. Real current web search results for trending topics in this creator's niche.
+3. A digest of this creator's own recent reports/scripts, so you know what they've already covered.
+
+Identify genuine gaps: topics/formats competitors are winning with that this creator hasn't done,
+sentiment patterns in competitor audiences this creator could serve better, and keyword/topic
+clusters the search results surface that neither this creator nor (as far as the data shows) their
+competitors have saturated yet. Every claim must trace to something actually in the data provided --
+never invent a competitor behavior or a keyword trend that wasn't given to you.
+
+Call submit_competitor_gap_analysis exactly once.`;
+
+export async function generateCompetitorGapAnalysis(params: {
+  competitorDigest: string;
+  searchDigest: string;
+  ownWorkDigest: string;
+}): Promise<Omit<CompetitorGapAnalysis, 'competitors'>> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 3072,
+    system: COMPETITOR_SYSTEM_PROMPT,
+    tools: [COMPETITOR_TOOL],
+    tool_choice: { type: 'tool', name: COMPETITOR_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Competitor snapshots:\n${params.competitorDigest}\n\n` +
+          `Trending-topic search results:\n${params.searchDigest}\n\n` +
+          `This creator's own recent work:\n${params.ownWorkDigest || '(none yet)'}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === COMPETITOR_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected competitor gap analysis.');
+  }
+
+  return toolUse.input as Omit<CompetitorGapAnalysis, 'competitors'>;
+}
+
+const CALENDAR_TOOL_NAME = 'submit_weekly_calendar';
+
+const CALENDAR_TOOL: Anthropic.Tool = {
+  name: CALENDAR_TOOL_NAME,
+  description: 'Submit 5-10 suggested posting slots for the coming week, spread across platforms and days.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      slots: {
+        type: 'array',
+        minItems: 5,
+        maxItems: 10,
+        items: {
+          type: 'object',
+          properties: {
+            day_of_week: {
+              type: 'string',
+              enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+            },
+            time_local: { type: 'string', description: '24h "HH:MM", grounded in the search results provided.' },
+            platform: { type: 'string', enum: ['tiktok', 'youtube_shorts', 'facebook_reels'] },
+            topic_suggestion: { type: 'string' },
+            reasoning: {
+              type: 'string',
+              description: 'Must cite the specific search result or cadence-data point that justifies this slot.',
+            },
+          },
+          required: ['day_of_week', 'time_local', 'platform', 'topic_suggestion', 'reasoning'],
+        },
+      },
+    },
+    required: ['slots'],
+  },
+};
+
+const CALENDAR_SYSTEM_PROMPT = `You are ViralEngine's Algorithmic Scheduling & Publishing Planner.
+You are given real current search results about optimal posting times for short-form video
+platforms, and (when available) a digest of this creator's own actual posting cadence from their
+past ViralEngine reports.
+
+Real per-user audience-timezone data isn't available in this deployment (that would need each
+creator's own Metricool account connected, which isn't built yet) -- so ground every suggested time
+in the search results you were actually given, not a guessed "best practice" you weren't shown.
+Where the creator's own cadence data is available, don't suggest a schedule wildly out of step with
+how often they actually post.
+
+Spread the 5-10 slots across multiple platforms and multiple days -- don't cluster everything on
+one day or one platform unless the data actually supports that.
+
+Call submit_weekly_calendar exactly once.`;
+
+export async function generateWeeklyCalendar(params: {
+  searchDigest: string;
+  ownCadenceDigest: string;
+}): Promise<CalendarSlot[]> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 2048,
+    system: CALENDAR_SYSTEM_PROMPT,
+    tools: [CALENDAR_TOOL],
+    tool_choice: { type: 'tool', name: CALENDAR_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Best-time-to-post search results:\n${params.searchDigest}\n\n` +
+          `This creator's own posting cadence:\n${params.ownCadenceDigest || '(no prior data)'}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === CALENDAR_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected weekly calendar.');
+  }
+
+  const input = toolUse.input as { slots: CalendarSlot[] };
+  return input.slots;
 }

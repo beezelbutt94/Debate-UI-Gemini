@@ -1,4 +1,4 @@
-import type { Platform } from '@/lib/types';
+import type { AccountPlatform, Platform } from '@/lib/types';
 
 /**
  * Detects which of the three supported short-form platforms a pasted URL
@@ -34,4 +34,22 @@ export function detectPlatform(rawUrl: string): Platform | null {
   }
 
   return null;
+}
+
+/**
+ * Builds a real public profile URL for an account handle on one of the
+ * three platforms this app tracks accounts on. Shared by any route that
+ * needs to turn a bare handle into a URL Tavily can extract (Deep-Dive,
+ * Competitor Espionage) -- one definition instead of duplicating the
+ * same three-platform switch in each route.
+ */
+export function buildAccountProfileUrl(platform: AccountPlatform, handle: string): string {
+  switch (platform) {
+    case 'youtube':
+      return `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`;
+    case 'tiktok':
+      return `https://www.tiktok.com/@${handle.replace(/^@/, '')}`;
+    case 'instagram':
+      return `https://www.instagram.com/${handle.replace(/^@/, '')}/`;
+  }
 }
