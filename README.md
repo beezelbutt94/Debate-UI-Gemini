@@ -1,118 +1,157 @@
-# ViralSync
+# ViralEngine
 
-A credit-metered dashboard where a creator pastes a TikTok or YouTube link
-and ViralSync allocates a micro-budget through that platform's **official**
-ad API (TikTok Spark Ads, Google Ads) to amplify it to real people. No bots,
-no click farms — only OAuth-authenticated, paid distribution through the
-platform's own auction, spending the *creator's own* connected ad account.
+A monetization-enabled SaaS platform for content creators. Paste a TikTok,
+YouTube Short, or Facebook Reel URL and the Viral Gap Analyzer scores it
+against the hook and retention benchmarks that separate viral videos from
+the rest, then returns a timestamped action plan for what's missing.
+
+This repo previously shipped a different product under this name
+(ViralSync — paid ad amplification via TikTok Spark Ads/Google Ads). That
+product has been retired; see `docs/DEBUG_RUN.md` for its historical debug
+record if you're archaeology-minded.
 
 ## Stack
 
-- Next.js 16 (App Router) + TypeScript + Tailwind
-- Supabase (Postgres + Auth, credit ledger + OAuth token vault, all RLS-enabled)
-- Stripe (subscription billing, credit top-ups)
+- Next.js 16 (App Router, Turbopack) + TypeScript + React 19 + Tailwind
+- Clerk (auth, session, user lifecycle webhook)
+- Supabase (Postgres, RLS-enabled, Clerk wired in as a third-party auth
+  provider)
+- Stripe (Creator/Pro/Studio subscription billing, quota-gated usage)
+- Tavily (`/extract`) for URL content extraction
+- Anthropic Claude (Messages API, tool-use/structured output) for the
+  actual audit synthesis
+
+## What's built: the Viral Gap Analyzer
+
+The one feature in this pass that's real end to end, not a stub:
+
+1. `app/dashboard/analyze/page.tsx` + `components/AnalyzerForm.tsx` — paste
+   a URL, see the score, hook evaluation, retention prediction, pacing
+   audit, action plan, and timestamped recommendations.
+2. `app/api/analyze/url/route.ts` — the orchestrator:
+   - Authenticates via Clerk's `auth()`.
+   - Detects the platform (`lib/platform.ts`) and rejects anything that
+     isn't a TikTok video, YouTube Short, or Facebook Reel URL.
+   - Atomically consumes one unit of the user's monthly analysis quota via
+     the `consume_analysis_quota()` Postgres function — server-role-only,
+     so a client can't call it directly to drain someone else's quota.
+   - Extracts real page content via Tavily's `/extract` API
+     (`lib/tavily.ts`), with a 15s timeout and typed rate-limit handling.
+   - Sends that content to Claude (`lib/anthropic.ts`) with a system
+     prompt that pins the real short-form benchmarks (60%+ retention at
+     3s, 40%+ at 30s) and forces structured JSON output via tool use.
+   - Writes the result to `audit_reports` and returns it.
+   - **Refunds** the quota unit via `refund_analysis_quota()` if any step
+     after the quota check fails — a scrape or LLM error should never
+     permanently cost a user one of their monthly analyses.
+3. Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
+   Checkout session against real test-mode prices (Creator/Pro/Studio,
+   created via the Stripe MCP connector under the "Peshets sandbox"
+   account); `app/api/stripe/webhook/route.ts` verifies the signature,
+   dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
+   tier + quota limit into `subscriptions`.
+4. Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
+   `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
+   requests to `/sign-in` and returning a JSON 401 for API requests.
+   `app/api/webhooks/clerk/route.ts` syncs `user.created` /
+   `user.updated` / `user.deleted` into the `users` table and creates a
+   default `subscriptions` row (Creator tier, 10 analyses/month) on
+   signup.
+
+See `docs/DEBUG_RUN.md`'s "ViralEngine (current app)" section for the real
+issues this surfaced and how each was fixed — including two genuine
+Next.js 16 breaking changes (`middleware.ts` → `proxy.ts`, `next lint`
+removed) that don't match most training data.
+
+## What's not built yet
+
+Creator Account Deep-Dive, Multimodal Video Upload Diagnostic, Script &
+Storyboard Generator, Creator Tool Suite Hub, Competitor Espionage Engine,
+and the Scheduling/Publishing Planner. See
+**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
+(already created, see below) and API routes each one needs, and which
+already-verified API contracts (vidIQ, Metricool, Cloudinary, Mem0,
+OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs) to build against.
 
 ## Local setup
 
 1. `npm install`
-2. Copy `.env.example` to `.env.local` and fill in Supabase + Stripe keys.
-   Leave the TikTok/Google Ads vars blank until you have real, approved
-   developer credentials — see **What's stubbed out** below.
-3. Apply `supabase/migrations/0001_init.sql` and `0002_platform_connections.sql`
-   to your Supabase project (`supabase db push`, or paste into the SQL editor,
-   in that order).
-4. `npm run dev`
+2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
+   Stripe, Anthropic, and Tavily keys.
+3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
+   project (`supabase db push`, or paste into the SQL editor). A live
+   project already has it applied — project ref `dcesehxmssqsszzasott`
+   ("unseen-reels"); ask for its URL/keys rather than provisioning a
+   second one.
+4. In the Supabase dashboard: Authentication → Sign In / Providers →
+   Third Party Auth → add Clerk (needs your Clerk instance's Frontend API
+   URL). This is a manual, one-time step no CLI/API here can perform —
+   see the note in `.env.example` for exactly what breaks without it (the
+   RLS-scoped clients in `lib/supabase/{server,client}.ts`; the shipped
+   Analyzer route doesn't depend on it).
+5. In the Clerk dashboard: add a webhook endpoint at
+   `{NEXT_PUBLIC_APP_URL}/api/webhooks/clerk` subscribed to
+   `user.created`, `user.updated`, `user.deleted`.
+6. In the Stripe dashboard (or via the Stripe MCP connector): point a
+   webhook at `{NEXT_PUBLIC_APP_URL}/api/stripe/webhook` for
+   `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`.
+7. `npm run dev`
 
-A live test-mode Supabase project (`unseen-reels`, region eu-central-1)
-already has both migrations applied — ask for its URL/anon key if you
-don't have them, rather than creating a second one. (An earlier `viralsync`
-project in eu-west-1 also has them applied and still exists, but this repo
-has since standardized on `unseen-reels`.)
+## Database schema
 
-## Architecture
+`supabase/migrations/0001_viralengine_init.sql` — every table has RLS
+enabled and a policy scoped to `auth.jwt()->>'sub'` (the Clerk user id,
+once step 4 above is done):
 
-- `app/page.tsx` — dashboard: paste-a-link input + credit meter + ad-account
-  connect buttons + plan picker.
-- `lib/supabase/` — `server.ts`/`client.ts` are RLS-scoped clients for normal
-  reads/writes; `admin.ts` is the service-role client, used only by the
-  Stripe webhook and the OAuth callback (never imported into client code).
-- `supabase/migrations/0001_init.sql` — `users` (Stripe linkage + credit
-  balance), `credit_ledger` (append-only audit trail), `campaign_logs`
-  (one row per submitted link). Every credit spend goes through the
-  `consume_credits()` Postgres function, which atomically checks the
-  balance and decrements it so two concurrent submissions can't both
-  succeed against a balance that only covers one.
-- `supabase/migrations/0002_platform_connections.sql` — `platform_connections`
-  links a creator to their own TikTok/Google Ads account. The OAuth
-  refresh token itself is never stored in a plain column: it goes into
-  Supabase Vault (encrypted), and only the `store_platform_refresh_token()`
-  / `get_platform_refresh_token()` functions — restricted to `service_role`
-  — can write or read it.
-- `lib/oauth/` — `tiktok.ts`/`google.ts` implement each platform's OAuth
-  flow (authorization URL + code exchange); `state.ts` handles CSRF via a
-  short-lived httpOnly cookie compared against the provider's `state` echo.
-- `app/api/oauth/[platform]/start` and `.../callback` — the connect flow:
-  start requires an authenticated session and redirects to the provider;
-  callback verifies CSRF state, exchanges the code, and persists the token
-  via the Vault-backed function above.
-- `app/api/campaigns/route.ts` — the credit gateway. Calls
-  `consume_credits()`; if the balance is insufficient it returns
-  **402 Payment Required**, per the pay-as-you-go design.
-- `lib/distribution.ts` — the *only* code allowed to call a platform's ad
-  API. Before attempting anything, it looks up the creator's own stored
-  OAuth connection and refuses to proceed without one — see below for what's
-  still a stub past that point.
-- `lib/stripe.ts`, `app/api/checkout/route.ts`,
-  `app/api/webhooks/stripe/route.ts` — Starter/Pro/Agency subscription
-  checkout and webhook-driven credit grants, idempotent on Stripe event id.
-  `getStripe()` is lazy so a missing `STRIPE_SECRET_KEY` fails at first use,
-  not at build/import time.
+- `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
+- `creators_profiles` — niche, per-platform handles, cached connected
+  metrics, Mem0 agent key.
+- `audit_reports` — every analysis result (Gap Analyzer, and eventually
+  Deep-Dive and Upload Diagnostic), JSONB payload + viral score +
+  timestamped recommendations.
+- `scripts` — generated storyboards, tone parameters, target platform.
+- `scheduled_posts` — the content calendar.
+- `subscriptions` — Stripe plan tier + atomic quota usage counters.
+- `stripe_webhook_events` — dedupe table, service-role only.
 
-## What's stubbed out (and why)
+Two service-role-only `SECURITY DEFINER` functions:
+`consume_analysis_quota(user_id)` / `refund_analysis_quota(user_id)` —
+see the security-advisor finding about these in `docs/DEBUG_RUN.md`
+before assuming a similar function is safe to expose more broadly.
 
-Two different things are true at once:
+## Deployment checklist (Vercel)
 
-- **The OAuth connect flow is real, working code** (`lib/oauth/`,
-  `app/api/oauth/`) — once you register real TikTok/Google developer apps
-  and set their client id/secret, creators can actually connect their own
-  ad accounts and the refresh token is genuinely captured and encrypted.
-- **Placing an actual ad is still a stub.** `lib/distribution.ts`'s
-  `amplify()` checks the platform env vars, confirms the creator has a
-  stored connection, and then throws "not yet implemented" — the TikTok
-  Marketing API / Google Ads API campaign-creation calls themselves aren't
-  written yet, because they need live testing against a real, approved
-  developer app to get right, and none exists yet.
-
-Getting past that stub requires, at minimum:
-
-- A verified TikTok Business account + Marketing API app review (Spark Ads
-  scope).
-- A Google Ads API developer token (subject to Google's approval process).
-- A funded ad budget — this is real paid spend on real ad platforms, not
-  free-tier infrastructure.
-
-## Deploying
-
-Before any production deploy:
-
-1. Confirm Supabase RLS is enabled on all tables (it is, per both
-   migrations — verify after any schema change with the security advisor).
-2. Set the env vars from `.env.example` in Vercel, including
-   `NEXT_PUBLIC_APP_URL` set to the real deployed origin (OAuth redirect
-   URIs and Stripe Checkout URLs are built from it).
-3. Register the deployed origin's `/api/oauth/tiktok/callback` and
-   `/api/oauth/google/callback` URLs with each platform's developer app.
-4. Point the Stripe webhook at `/api/webhooks/stripe` and use its signing
-   secret for `STRIPE_WEBHOOK_SECRET`.
-5. Keep Stripe in **test mode** and the distribution env vars unset until
-   you're ready to take real payments and place real ad spend — both are
-   irreversible, user-visible actions worth a deliberate go/no-go.
+1. Set every var from `.env.example`'s ViralEngine section in the Vercel
+   project (Production **and** Preview — Preview needs its own
+   Clerk/Stripe test-mode keys, or builds will fail the same way local
+   `next build` does without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`).
+2. `NEXT_PUBLIC_APP_URL` must be the real deployed origin — Stripe
+   Checkout success/cancel URLs and the Clerk/Stripe webhook URLs you
+   register are built from it.
+3. Confirm Supabase RLS is enabled on all six ViralEngine tables (it is,
+   per the migration — re-verify after any schema change with
+   `get_advisors(type: 'security')`, not just by reading the migration).
+4. Complete the Clerk↔Supabase Third Party Auth dashboard step (above)
+   before shipping any feature that uses the RLS-scoped Supabase clients.
+5. Point the Clerk webhook and the Stripe webhook at their real
+   `/api/webhooks/clerk` and `/api/stripe/webhook` URLs on the deployed
+   origin, using each one's real signing secret.
+6. Keep Stripe in test mode until you're ready to take real payments —
+   flipping to live mode is a deliberate, user-visible, hard-to-reverse
+   action worth its own go/no-go.
+7. `npm run typecheck && npm run build && npm run lint` locally before
+   every deploy — all three are real, working checks now (see
+   `docs/DEBUG_RUN.md` for what was broken about `lint` before this pass).
 
 ## ViralVision platform expansion (separate, unbuilt scaffold)
 
 `services/api/`, `services/collab/`, `k8s/`, and `argocd/` are an
 organized-but-unrun scaffold for a much larger, separate "ViralVision"
 AI video-generation platform described in a batch of architecture docs.
-They don't affect anything above — the app you're reading about here
-still works exactly as documented. See **`docs/PLATFORM_ROADMAP.md`**
-for what's there, what it maps to, and what's explicitly not done yet.
+They don't affect anything above — the ViralEngine app you're reading
+about still works exactly as documented, and `proxy.ts`'s tenant-routing
+half (which belongs to this scaffold) stays disabled unless
+`MULTI_TENANT_ROUTING_ENABLED=true` is set. See
+**`docs/PLATFORM_ROADMAP.md`** for what's there, what it maps to, and
+what's explicitly not done yet.

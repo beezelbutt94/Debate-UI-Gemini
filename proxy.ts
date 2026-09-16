@@ -1,15 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 /**
- * Multi-tenant custom-domain routing for the ViralVision platform expansion
- * (see docs/PLATFORM_ROADMAP.md). Resolves a subdomain or white-labeled
- * custom domain to a tenant and rewrites to `/_tenants/[tenantId]/...`.
+ * Next.js 16 renamed the `middleware.ts` file convention to `proxy.ts`
+ * (a single file may export only one proxy function) — see
+ * node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md.
+ * This file therefore does two unrelated things in one exported function:
  *
- * Disabled by default (`NextResponse.next()` on every request) so it can't
- * break the existing ViralSync app's routing until multi-tenancy is
- * actually wanted -- flip `MULTI_TENANT_ROUTING_ENABLED=true` to turn it on,
- * and set `NEXT_PUBLIC_ROOT_DOMAIN` to your real apex domain first, or every
- * request will look like an unregistered tenant.
+ * 1. Clerk auth gating for ViralEngine itself (reachable without a
+ *    session: the marketing root, Clerk's own auth pages, and the two
+ *    signature-verified webhook endpoints; everything else under
+ *    /dashboard or /api requires a signed-in user).
+ * 2. The pre-existing, disabled-by-default multi-tenant custom-domain
+ *    routing for the separate ViralVision platform expansion (see
+ *    docs/PLATFORM_ROADMAP.md) — unchanged from before, still gated
+ *    behind MULTI_TENANT_ROUTING_ENABLED so it can't affect ViralEngine's
+ *    routing until multi-tenancy is actually wanted.
  */
 
 interface TenantResolutionRecord {
@@ -48,7 +55,7 @@ async function resolveTenantRecord(hostname: string): Promise<TenantResolutionRe
         }
       }
     } catch (err) {
-      console.error(`[middleware] Edge Redis lookup error for host ${hostname}:`, err);
+      console.error(`[proxy] Edge Redis lookup error for host ${hostname}:`, err);
     }
   }
 
@@ -66,7 +73,7 @@ async function resolveTenantRecord(hostname: string): Promise<TenantResolutionRe
         return data;
       }
     } catch (err) {
-      console.error(`[middleware] Backend lookup failed for host ${hostname}:`, err);
+      console.error(`[proxy] Backend lookup failed for host ${hostname}:`, err);
     }
   }
 
@@ -74,9 +81,9 @@ async function resolveTenantRecord(hostname: string): Promise<TenantResolutionRe
   return null;
 }
 
-export async function proxy(req: NextRequest) {
+async function applyTenantRouting(req: NextRequest): Promise<NextResponse | undefined> {
   if (process.env.MULTI_TENANT_ROUTING_ENABLED !== 'true') {
-    return NextResponse.next();
+    return undefined;
   }
 
   const url = req.nextUrl;
@@ -85,7 +92,7 @@ export async function proxy(req: NextRequest) {
   const { pathname, search } = url;
 
   if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
-    return NextResponse.next();
+    return undefined;
   }
 
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost';
@@ -93,7 +100,7 @@ export async function proxy(req: NextRequest) {
     hostname === rootDomain || hostname === `www.${rootDomain}` || hostname === 'localhost';
 
   if (isRootApex) {
-    return NextResponse.next();
+    return undefined;
   }
 
   let resolvedTenant: TenantResolutionRecord | null = null;
@@ -126,6 +133,43 @@ export async function proxy(req: NextRequest) {
   return response;
 }
 
+// Reachable without authentication: the marketing/dashboard root, Clerk's
+// own auth pages, and the two signature-verified webhook endpoints (Clerk
+// and Stripe never send a session, they send a svix/stripe signature).
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/webhooks/clerk',
+  '/api/webhooks/stripe',
+]);
+
+// Everything else under /dashboard or /api requires a signed-in user.
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/api/(.*)']);
+
+export const proxy = clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req) && isProtectedRoute(req)) {
+    const { userId, redirectToSignIn } = await auth();
+    if (!userId) {
+      // API routes are consumed by fetch()/curl/Postman, which expect a
+      // JSON error, not an HTML sign-in page behind a redirect. Only
+      // /dashboard page routes get the redirect.
+      if (req.nextUrl.pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+      }
+      return redirectToSignIn();
+    }
+  }
+
+  return (await applyTenantRouting(req)) ?? NextResponse.next();
+});
+
+// Clerk's recommended matcher (run on every route except static files and
+// Next internals, always run on API routes) — a superset of the old
+// tenant-routing matcher, which is still enforced inside applyTenantRouting.
 export const config = {
-  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'],
+  matcher: [
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+  ],
 };

@@ -1,5 +1,5 @@
 {
-  "name": "viralsync",
+  "name": "viralengine",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,23 +10,27 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.2",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@clerk/nextjs": "^6.9.6",
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.451.0",
     "next": "^16.3.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "stripe": "^17.2.1"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "stripe": "^17.2.1",
+    "svix": "^1.42.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "~5.8.2"

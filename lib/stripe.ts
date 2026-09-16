@@ -18,25 +18,26 @@ export function getStripe(): Stripe {
   return cached;
 }
 
-export type Plan = 'starter' | 'pro' | 'agency';
+export type PlanTier = 'creator' | 'pro' | 'studio';
 
-// Views included per plan; credits are tracked 1 credit = 1 view.
-export const PLAN_CREDITS: Record<Plan, number> = {
-  starter: 50_000,
-  pro: 200_000,
-  agency: 1_000_000,
+export const PLAN_QUOTA: Record<PlanTier, number> = {
+  creator: 10,
+  pro: 50,
+  studio: 200,
 };
 
-// Populate with real Price IDs from the Stripe dashboard/test mode before
-// wiring up checkout. Left blank so a misconfiguration fails loudly.
-export const PLAN_PRICE_IDS: Record<Plan, string> = {
-  starter: process.env.STRIPE_PRICE_STARTER ?? '',
+// Real Stripe test-mode price IDs, created via the Stripe MCP server under
+// the "Peshets sandbox" account (acct_1UFaOJGZbTaqS7W8). Populate the env
+// vars from .env.example with these (or your own account's equivalents)
+// before wiring up checkout in a different Stripe account.
+export const PLAN_PRICE_IDS: Record<PlanTier, string> = {
+  creator: process.env.STRIPE_PRICE_CREATOR ?? '',
   pro: process.env.STRIPE_PRICE_PRO ?? '',
-  agency: process.env.STRIPE_PRICE_AGENCY ?? '',
+  studio: process.env.STRIPE_PRICE_STUDIO ?? '',
 };
 
-export function planFromPriceId(priceId: string): Plan | null {
-  const entry = (Object.entries(PLAN_PRICE_IDS) as [Plan, string][]).find(
+export function planFromPriceId(priceId: string): PlanTier | null {
+  const entry = (Object.entries(PLAN_PRICE_IDS) as [PlanTier, string][]).find(
     ([, id]) => id && id === priceId
   );
   return entry ? entry[0] : null;

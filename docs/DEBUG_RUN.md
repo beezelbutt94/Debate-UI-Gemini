@@ -1,5 +1,44 @@
 # Full run & debug pass
 
+> Everything below "ViralEngine (current app)" predates the pivot from
+> ViralSync (paid-ad amplification) to ViralEngine (viral-gap analysis +
+> content generation) — see README.md. Several files it references
+> (`app/api/campaigns`, `lib/oauth/`, `lib/distribution.ts`,
+> `supabase/migrations/0001_init.sql`) no longer exist. Kept as a historical
+> record of that era's debug work; the FastAPI/Docker/k8s findings below
+> still apply since `services/api` wasn't touched by the pivot.
+
+## ViralEngine (current app)
+
+Findings from actually building and running the ViralEngine rebuild: real
+`npm run typecheck`, `npm run build`, `npm run lint`, and a live `next dev`
+smoke test (curl against `/`, `/dashboard/analyze`, `/api/analyze/url`,
+`/sign-in`), plus real infrastructure checks via the Supabase and Stripe
+MCP connectors (`get_advisors`, `information_schema` queries against the
+live `unseen-reels` project).
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| Next.js 16 removed the `middleware.ts` convention in favor of `proxy.ts` (one exported proxy function per project). This repo already had a `proxy.ts` (ViralVision's disabled-by-default tenant routing); adding Clerk's `middleware.ts` alongside it hard-fails the build. | `next build`: `Error: Both middleware file "./middleware.ts" and proxy file "./proxy.ts" are detected.` | Merged Clerk's `clerkMiddleware` auth gating and the existing tenant-routing logic into a single exported `proxy` in `proxy.ts`. |
+| `next lint` no longer exists as a command in Next.js 16 — the `lint` script was silently broken (parsed "lint" as a directory argument). | `npm run lint` -> `Invalid project directory provided, no such directory: .../lint`. | Installed `eslint` + `eslint-config-next`, added `eslint.config.mjs` (flat config), changed the script to `eslint .`. Now finds 2 real, pre-existing issues in the untouched ViralVision scaffold (`app/dashboard/settings/domain/page.tsx`, `postcss.config.mjs`) — left alone, out of scope for this pass. |
+| `ClerkProvider` needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at `next build` time, not just at runtime (it's read during static prerendering of `/_not-found`). | `next build` failed prerendering `/_not-found`: `@clerk/clerk-react: Missing publishableKey`. | Not a bug — documented in `.env.example`. Verified the rest of the build (all 14 routes) is otherwise sound by building once with a syntactically-valid placeholder key. |
+| Clerk's `redirectToSignIn()` inside `clerkMiddleware` returns an HTML redirect (307) for *every* unauthenticated protected route, including `/api/*`. A JSON API consumer (fetch, curl, Postman) would receive a redirect instead of a 401 body. | `curl -X POST /api/analyze/url` (no session) -> `307`, confirmed live against `next dev`. | `proxy.ts` now branches: `/api/*` gets `NextResponse.json({error}, {status:401})`, page routes still redirect. Re-verified: same request now returns `401 {"error":"Not authenticated."}`. |
+| Stripe SDK v17.7.0's shipped TypeScript types put `current_period_end` on `Subscription`, not per-item — using `subscription.items.data[0].current_period_end` (a plausible guess from newer Stripe API changelogs) doesn't compile. | `tsc --noEmit`: `Property 'current_period_end' does not exist on type 'SubscriptionItem'`. | Confirmed the real field location by grepping the installed package's `.d.ts` files rather than guessing twice; fixed to `subscription.current_period_end`. |
+| `consume_analysis_quota()`/`refund_analysis_quota()` (`SECURITY DEFINER`, take an arbitrary `p_user_id`) were executable by the `anon` and `authenticated` Postgres roles by default — Postgres grants `EXECUTE` to `PUBLIC` on function creation, and revoking from `anon`/`authenticated` alone doesn't override a standing `PUBLIC` grant. Any signed-in user could have called the RPC directly with someone else's Clerk id and drained their quota. | Supabase `get_advisors(type: security)` flagged both `anon_security_definer_function_executable` and `authenticated_security_definer_function_executable`; confirmed via `select grantee from information_schema.role_routine_grants where routine_name = 'consume_analysis_quota'` still showing `PUBLIC` after the first fix attempt. | `revoke execute ... from public; grant execute ... to service_role;` — re-checked `role_routine_grants` afterward: only `service_role`/`postgres` remain, and `get_advisors` came back clean. |
+| A scrape or LLM failure after the quota RPC succeeded would permanently cost the user an analysis for nothing (mirrors the exact bug already fixed once in this repo for ViralSync's credits — see `fail_campaign_and_refund()` below). | Code-review of the failure path before shipping, not a live incident. | Added `refund_analysis_quota()` (same `SECURITY DEFINER`/service-role-only pattern) and call it from every catch branch in `app/api/analyze/url/route.ts`, including the Tavily-rate-limit branch. |
+| Tavily's `/extract` can rate-limit (429) or hang. | Verified the success response shape live via the Tavily MCP connector against a real YouTube Shorts URL; the 429/timeout paths are handled defensively rather than reproduced live (no way to force Tavily to rate-limit on demand). | `lib/tavily.ts`: typed `TavilyRateLimitError` carrying `Retry-After`, propagated as a `429` with that header; a 15s `AbortController` timeout so a hung request can't pin a serverless invocation open indefinitely. |
+| `auth.jwt()->>'sub'` RLS policies only resolve once Clerk is configured as a Supabase "Third Party Auth" provider in the dashboard — a manual step no API/CLI tool here can perform. | N/A — a configuration gap, not a code bug. | Documented prominently in `.env.example`. The shipped Viral Gap Analyzer route avoids depending on it entirely: it reads/writes via the service-role client with an explicit `user_id` filter sourced from Clerk's server-verified session, not the RLS-scoped client. |
+| Multimodal video upload size/format constraints (Cloudinary signed uploads) | N/A | Not applicable yet — that feature isn't built (see `docs/VIRALENGINE_ROADMAP.md`); flagged there rather than solved speculatively here. |
+
+Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
+`npm run build` (all 14 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings above), and a live `next dev` pass —
+`GET /` -> 200, `GET /dashboard/analyze` unauthenticated -> 307 to
+`/sign-in`, `POST /api/analyze/url` unauthenticated -> 401 JSON,
+`GET /sign-in` -> 200.
+
+---
+
 A record of actually running everything in this repo — the Next.js app in a
 real browser, the FastAPI service under uvicorn, the Docker images, and the
 database schema against the live Supabase project — and what that surfaced.
