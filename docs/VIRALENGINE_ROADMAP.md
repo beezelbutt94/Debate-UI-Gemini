@@ -25,26 +25,90 @@ whole spec's schema up front, not just the one feature it started with.
 | 6 | Competitor Espionage & Gap Engine | **Shipped** — see README.md |
 | 7 | Algorithmic Scheduling & Publishing Planner | **Shipped** — see README.md |
 
+## 8. OAuth connections + publish trigger — shipped (partially -- see per-service verdicts)
+
+The "what would come after this spec" layer below turned into real, shipped
+infrastructure once investigated properly rather than staying speculative.
+The first step was verifying, service by service, which of the five
+candidates (Descript, OpusClip, HeyGen/HyperFrames, Metricool, Canva) even
+*have* a genuine self-serve, multi-tenant OAuth product a deployed third
+party can register without a sales/partnership conversation and use to act
+on an arbitrary end user's own account — as opposed to an account-linked,
+single-workspace API key (what this session's own MCP connectors to those
+services expose, which is access *for this session as one operator*, not
+for a SaaS's many end users).
+
+| Service | Verdict | Why |
+|---|---|---|
+| **Canva** | Genuine self-serve OAuth2 (Connect API) | `canva.dev` Developer Portal issues a `client_id`/`client_secret` immediately for a private integration; Authorization Code + PKCE; real per-user consent screen. Going live for arbitrary users needs Canva's integration review queue, but registration itself needs no conversation. |
+| **YouTube** | Genuine self-serve OAuth2 (standard Google) | Same Google Cloud Console OAuth client model as any "Sign in with Google" integration. No review gate for the grant itself. |
+| **TikTok** | Genuine self-serve OAuth2, audit-gated for public visibility | `developers.tiktok.com` app registration is self-serve; Content Posting API's Direct Post works immediately but restricts all posts to private/self-only until TikTok completes a content audit (5-10 business days). |
+| **Facebook** (Reels, via Pages) | Genuine self-serve OAuth2, App-Review-gated | Standard Meta app registration; `pages_manage_posts` requires Meta App Review before it works for accounts beyond a Tester/Developer role on the app. |
+| **Descript** | No multi-tenant OAuth | API tokens are generated manually per-account and tied to one Drive (workspace) — no `client_id`/secret registration, no consent screen for another user's account. |
+| **OpusClip** | No multi-tenant OAuth | A single Bearer API key per org/workspace, gated by plan tier (self-serve to *obtain*, but still one fixed account, not per-end-user consent). |
+| **HeyGen / HyperFrames** | OAuth2 exists but partnership-gated | A real Authorization Code + PKCE flow exists, but HeyGen's Partnerships team must manually issue the `client_id` and approve the redirect URI first — fails the "no sales conversation" bar the other four clear. Unclear the grant even extends to HyperFrames-specific actions vs. general HeyGen video API. |
+| **Metricool** | No multi-tenant OAuth (confirms feature 2/7's finding) | Static `userToken` header tied to one account/workspace, gated behind the Advanced/Custom plan — no registration, no consent screen. |
+
+What shipped, matching the four real verdicts:
+
+- `supabase/migrations/0002_platform_connections.sql` — one table for all
+  four platforms, Vault-encrypted tokens (mirrors the `store_platform_refresh_token`/
+  `get_platform_refresh_token` pattern `lib/oauth/` used for ViralSync's
+  TikTok/Google Ads flow, adapted to Clerk's text user ids and to storing
+  both an access *and* refresh token since these providers, unlike
+  ViralSync's two, mostly issue short-lived access tokens).
+- `lib/oauth/{youtube,tiktok,facebook,canva}.ts` — real authorization URLs
+  and token exchange against each provider's verified current endpoints
+  (Canva's PKCE requirement, Facebook's short-lived → long-lived → Page
+  token indirection, TikTok's `client_key` naming all confirmed against
+  live docs this session, not assumed from training data).
+  `app/api/oauth/[platform]/{start,callback}` is the connect flow itself.
+- `lib/publish/{youtube,tiktok,facebook}.ts` — the actual publish calls:
+  YouTube's resumable upload protocol (streams the Cloudinary-hosted video
+  straight through, no full buffering), TikTok's Direct Post `init` call
+  (`PULL_FROM_URL`, which requires verifying Cloudinary's domain in
+  TikTok's developer portal — a real one-time setup step this code can't
+  do for you), Facebook's 3-phase Reels upload. Canva has no publish
+  function yet — connecting it is real and live, but wiring the Tool
+  Suite Hub to actually call `design:content:write` instead of showing a
+  deep link is a follow-up, not part of this round.
+- `app/api/cron/publish/route.ts` + `vercel.json` — the actual trigger:
+  finds `scheduled_posts` rows past their `publish_at` with
+  `status = 'scheduled'`, calls the matching publisher, records success or
+  a real `publish_error` message (not just a boolean). Deliberately
+  trigger-agnostic (checks a `CRON_SECRET` bearer header rather than
+  assuming Vercel specifically) since Vercel Cron's Hobby-plan minimum
+  interval is once/day regardless of what `vercel.json` requests.
+  `proxy.ts` had to gain a `/api/cron/(.*)` exception to Clerk's blanket
+  `/api/*` auth gate — an external scheduler never carries a Clerk
+  session, only the bearer secret the route checks itself; caught by
+  smoke-testing the endpoint the same way every other feature in this app
+  has been, not assumed to work.
+- `app/dashboard/settings/connections` + `components/ConnectionsPanel.tsx`
+  — connect/disconnect UI with live status, including each platform's real
+  caveat (audit/review gate or lack thereof) surfaced in the UI itself
+  rather than left for a support ticket to discover.
+
+Real, documented gaps left in this layer: no per-Page/per-channel picker
+(Facebook and a creator with multiple Pages connects whichever one
+`/me/accounts` returns first); TikTok's publish call doesn't poll
+`post/publish/status/fetch/` for terminal state, just confirms the job was
+accepted; Canva's OAuth is live but nothing calls its API yet. Each is the
+same category of honestly-scoped gap as the un-built calendar drag gesture
+in feature 7 — a real follow-up, not something silently assumed away.
+
 ## What would come after this spec, if it kept going
 
-Not part of the original 7, but the honest next layer given what shipped:
-
-1. **Per-user OAuth connections** to Descript, OpusClip, HyperFrames,
-   Canva, and Metricool — the single biggest category of "not real" left
-   anywhere in this app. Each is its own OAuth app registration, consent
-   screen, and token-storage problem (mirroring what `lib/oauth/` used to
-   handle for ViralSync's TikTok/Google Ads flow, before the pivot).
-   Unlocks: the Tool Suite Hub actually driving a tool instead of linking
-   to it, and per-user audience-timezone data for the Scheduling Planner
-   instead of server-clock-relative suggestions.
-2. **A publish-time trigger** (Vercel Cron or a Supabase scheduled
-   function) that turns a `scheduled_posts` row into an actual post via
-   each platform's publishing API — needs (1) to exist first.
-3. **Per-user timezone storage.** `nextOccurrence()` in
+1. **Per-user timezone storage.** `nextOccurrence()` in
    `app/api/schedule/generate/route.ts` resolves against the server's own
    clock today; a `timezone` column on `users` (populated from the
    browser at signup) would let the Scheduling Planner compute real local
    times per creator instead.
+2. **Wire Canva into the Tool Suite Hub.** The OAuth connection is real and
+   live (`lib/oauth/canva.ts`); nothing calls `design:content:write` yet
+   to turn a tool recommendation into an actual Canva design.
+3. **TikTok publish-status polling** and **multi-Page selection for
+   Facebook** — see the gaps noted in section 8 above.
 
 ## 2. Creator Account Deep-Dive — shipped
 

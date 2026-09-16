@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/tools', label: 'Tool Suite Hub' },
   { href: '/dashboard/competitors', label: 'Competitor Espionage' },
   { href: '/dashboard/schedule', label: 'Schedule' },
+  { href: '/dashboard/settings/connections', label: 'Connections' },
 ];
 
 /**

@@ -232,21 +232,56 @@ All 7 features from the original spec, real end to end, not stubs:
      `draft` `scheduled_posts` row.
    - **Known limitation, not hidden**: there's no per-user timezone
      column in this schema yet, so `nextOccurrence()` resolves against
-     the server's own clock rather than each creator's actual timezone —
-     the spec's "audience timezone activity via Metricool" needs a
-     per-user Metricool OAuth connection this pass doesn't build (the
-     same category of gap as the Tool Suite Hub's four services).
-4. **What's deliberately not built**: actually *publishing* a
-   `scheduled_posts` row to a live platform at its `publish_at` time
-   needs two things this pass doesn't have — a cron/queue trigger (Vercel
-   Cron or a Supabase scheduled function) and a per-user OAuth connection
-   to each platform's publishing API. Building the data model and the
-   generation logic without faking the publish step is the same honest
-   split ViralSync's own OAuth-flow-real/ad-placement-stub pattern used,
-   one product ago. "Drag-and-drop rescheduling" from the spec is real as
-   a datetime-picker edit calling the same `PATCH` endpoint a drag
-   interaction would; an actual drag gesture wasn't built — a UI-only
-   scoping choice, not a backend limitation.
+     the server's own clock rather than each creator's actual timezone.
+4. **Actually publishes now.** `app/dashboard/settings/connections`
+   connects a creator's own YouTube, TikTok, or Facebook account via real
+   OAuth2 (`lib/oauth/`), and `app/api/cron/publish/route.ts` (on a
+   `vercel.json` schedule) finds `scheduled_posts` rows past their
+   `publish_at` and actually posts them via each platform's real API
+   (`lib/publish/`) — see "OAuth connections + publish trigger" below.
+   "Drag-and-drop rescheduling" from the spec is real as a datetime-picker
+   edit calling the same `PATCH` endpoint a drag interaction would; an
+   actual drag gesture wasn't built — a UI-only scoping choice, not a
+   backend limitation.
+
+### OAuth connections + publish trigger
+
+Investigated whether Descript, OpusClip, HeyGen/HyperFrames, Metricool,
+and Canva have a genuine self-serve, multi-tenant OAuth product before
+building anything — the same "verify the real API contract first"
+discipline every feature above used. Only **Canva** does; the other four
+are account-linked, single-workspace API keys with no way to grant access
+to an arbitrary end user's own account (Metricool confirms the finding
+features 2 and 7 already made about it). The platforms `scheduled_posts`
+actually needs to publish to — **YouTube, TikTok, and Facebook** — each
+turned out to have real self-serve OAuth2 too, just with different
+review/audit gates before going fully public. Full per-service verdicts
+and evidence: `docs/VIRALENGINE_ROADMAP.md`.
+
+What's real and live:
+
+- `supabase/migrations/0002_platform_connections.sql` — Vault-encrypted
+  per-user, per-platform token storage (access + refresh token, both
+  behind `SECURITY DEFINER` functions restricted to `service_role`, same
+  pattern as this schema's quota functions).
+- `lib/oauth/{youtube,tiktok,facebook,canva}.ts` +
+  `app/api/oauth/[platform]/{start,callback}/route.ts` — the connect
+  flow, with CSRF state and (for Canva) PKCE.
+- `lib/publish/{youtube,tiktok,facebook}.ts` — the actual publish calls:
+  YouTube's resumable upload, TikTok's Content Posting API Direct Post,
+  Facebook's 3-phase Reels upload.
+- `app/api/cron/publish/route.ts` + `vercel.json` — the trigger itself,
+  bearer-secret-protected and trigger-agnostic (works with Vercel Cron or
+  any external scheduler hitting the same URL).
+- `app/dashboard/settings/connections` — connect/disconnect UI, each
+  platform's real review/audit caveat shown inline.
+
+Real, non-hidden gaps: TikTok posts stay private/self-only until this
+app's client passes TikTok's content audit; Facebook Reels needs Meta App
+Review before it works for anyone beyond a Tester/Developer role; Canva's
+connection is live but nothing calls its design-creation API yet (the
+Tool Suite Hub still deep-links); no multi-Page picker for a creator who
+manages more than one Facebook Page.
 
 ### Shared platform pieces
 
@@ -271,22 +306,26 @@ removed) that don't match most training data.
 
 ## What's genuinely not built
 
-All 7 features are shipped, but two categories of "actually drive a
-third-party platform on a user's behalf" were deliberately never
-attempted or stubbed, across every feature that touched them:
+All 7 features are shipped, and the OAuth/publish-trigger layer above is
+real for YouTube, TikTok, Facebook, and Canva's connection step. What's
+still genuinely not built:
 
-- **Per-user OAuth to Descript, OpusClip, HyperFrames, Canva, or
-  Metricool.** Each has a real API, but each needs its own per-creator
-  account connection this pass doesn't build — the Tool Suite Hub
-  recommends and deep-links instead of driving them; the Scheduling
-  Planner plans instead of publishing.
-- **Actual publish-time execution.** No cron/queue trigger exists to
-  turn a `scheduled_posts` row into a live post at its `publish_at` time.
+- **Descript, OpusClip, and HeyGen/HyperFrames driving.** Verified this
+  session: none of the three has a genuine self-serve, multi-tenant OAuth
+  product — see the roadmap's per-service table. The Tool Suite Hub
+  recommends and deep-links to these three instead of driving them; that
+  isn't a scoping gap, it's the honest ceiling of what's actually
+  buildable without a partnership conversation.
+- **Canva design-creation.** The OAuth connection is real and live;
+  nothing calls `design:content:write` yet to turn a Tool Suite Hub
+  recommendation into an actual Canva design instead of a deep link.
+- **Per-user timezone storage**, **TikTok publish-status polling**, and
+  **multi-Page selection for Facebook** — see `docs/VIRALENGINE_ROADMAP.md`
+  for what each would take.
 
-Both are the same honest split ViralSync's own
-OAuth-flow-real/ad-placement-stub pattern already used in this repo, one
-product ago — see `docs/VIRALENGINE_ROADMAP.md` for what each would
-actually take to build.
+Each is the same honest-scoping pattern ViralSync's own
+OAuth-flow-real/ad-placement-stub split already used in this repo, one
+product ago.
 
 ## Local setup
 
@@ -294,11 +333,13 @@ actually take to build.
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
    Stripe, Anthropic, Tavily, YouTube Data API v3, Cloudinary, and Mem0
    keys.
-3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
-   project (`supabase db push`, or paste into the SQL editor). A live
-   project already has it applied — project ref `dcesehxmssqsszzasott`
-   ("unseen-reels"); ask for its URL/keys rather than provisioning a
-   second one.
+3. Apply `supabase/migrations/0001_viralengine_init.sql` and
+   `0002_platform_connections.sql` to your Supabase project
+   (`supabase db push`, or paste into the SQL editor) -- both need the
+   `pgsodium`/Supabase Vault extension, already enabled on the live
+   project. A live project already has both applied — project ref
+   `dcesehxmssqsszzasott` ("unseen-reels"); ask for its URL/keys rather
+   than provisioning a second one.
 4. In the Supabase dashboard: Authentication → Sign In / Providers →
    Third Party Auth → add Clerk (needs your Clerk instance's Frontend API
    URL). This is a manual, one-time step no CLI/API here can perform —
@@ -312,7 +353,16 @@ actually take to build.
    webhook at `{NEXT_PUBLIC_APP_URL}/api/stripe/webhook` for
    `checkout.session.completed`, `customer.subscription.updated`,
    `customer.subscription.deleted`.
-7. `npm run dev`
+7. Optional, for the OAuth connections + publish trigger: register apps
+   with Google Cloud Console (YouTube), developers.tiktok.com, Meta for
+   Developers, and/or canva.dev per the comments in `.env.example`, and
+   set `CRON_SECRET`. Every connect button fails informatively rather than
+   silently until its own app is registered, so this can be done
+   incrementally, platform by platform. On Vercel, also set the project's
+   `CRON_SECRET` env var to the same value so `vercel.json`'s cron job can
+   call `/api/cron/publish` — note its Hobby-plan minimum interval is
+   once/day regardless of the `*/15 * * * *` schedule configured there.
+8. `npm run dev`
 
 ## Database schema
 
@@ -331,11 +381,17 @@ once step 4 above is done):
 - `scheduled_posts` — the content calendar.
 - `subscriptions` — Stripe plan tier + atomic quota usage counters.
 - `stripe_webhook_events` — dedupe table, service-role only.
+- `platform_connections` (`0002_platform_connections.sql`) — per-user
+  OAuth connections to YouTube/TikTok/Facebook/Canva. Tokens never touch
+  a plain column; only their Supabase Vault secret ids live here.
 
-Two service-role-only `SECURITY DEFINER` functions:
+Service-role-only `SECURITY DEFINER` functions:
 `consume_analysis_quota(user_id)` / `refund_analysis_quota(user_id)` —
 see the security-advisor finding about these in `docs/DEBUG_RUN.md`
-before assuming a similar function is safe to expose more broadly.
+before assuming a similar function is safe to expose more broadly — and
+`store_platform_connection` / `get_platform_connection_secrets` /
+`delete_platform_connection`, the Vault-backed read/write/delete path for
+`platform_connections`.
 
 ## Deployment checklist (Vercel)
 
@@ -346,8 +402,8 @@ before assuming a similar function is safe to expose more broadly.
 2. `NEXT_PUBLIC_APP_URL` must be the real deployed origin — Stripe
    Checkout success/cancel URLs and the Clerk/Stripe webhook URLs you
    register are built from it.
-3. Confirm Supabase RLS is enabled on all six ViralEngine tables (it is,
-   per the migration — re-verify after any schema change with
+3. Confirm Supabase RLS is enabled on all seven ViralEngine tables (it is,
+   per the migrations — re-verify after any schema change with
    `get_advisors(type: 'security')`, not just by reading the migration).
 4. Complete the Clerk↔Supabase Third Party Auth dashboard step (above)
    before shipping any feature that uses the RLS-scoped Supabase clients.
@@ -360,6 +416,13 @@ before assuming a similar function is safe to expose more broadly.
 7. `npm run typecheck && npm run build && npm run lint` locally before
    every deploy — all three are real, working checks now (see
    `docs/DEBUG_RUN.md` for what was broken about `lint` before this pass).
+8. If publishing is wanted, register the OAuth apps in `.env.example`'s
+   "OAuth connections + publish trigger" section, set `CRON_SECRET` as a
+   Vercel project env var, and confirm the project is on a plan whose
+   cron minimum interval matches `vercel.json`'s `*/15 * * * *` (Hobby is
+   once/day). Register each redirect URI
+   (`{NEXT_PUBLIC_APP_URL}/api/oauth/{platform}/callback`) on the real
+   deployed origin, not `localhost`.
 
 ## ViralVision platform expansion (separate, unbuilt scaffold)
 

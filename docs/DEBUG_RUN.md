@@ -68,6 +68,77 @@ it, not assumed from training data -- and the cases where that check
 changed the plan (vidIQ/Metricool in feature 2, Semrush/Ahrefs in feature
 6, Metricool again in feature 7) were exactly the cases worth checking.
 
+## OAuth connections + publish trigger, then a full beta test pass
+
+Same build discipline as the 7 features, plus one thing done differently
+this time: after `typecheck`/`build`/`lint` came back clean, a systematic
+beta test was run against every route in the app (not just the new ones)
+with the dev server pointed at the real `unseen-reels` Supabase project,
+specifically *because* "clean lint" had never actually caught a wiring
+bug between two features built in different sessions -- and it hadn't
+been checked. It found two, both real, both now fixed.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| **`store_platform_connection()`'s Vault secret naming crashed on the very first reconnect/refresh.** The function derives a deterministic `vault.secrets.name` from `platform:kind:user_id` and created the *new* secret before deleting the *old* one -- `vault.secrets.name` has a unique constraint, so any second call for the same user+platform (exactly what `lib/publish/tokens.ts`'s token-refresh path does on every expiring access token) would throw. This would have broken every connected account within one access-token lifetime (as short as ~55 minutes for TikTok/Canva) after the first successful connect. | Reproduced live: a `do $$ ... $$` block against the real database calling `store_platform_connection()` twice for the same user+platform (simulating connect, then a token refresh) failed with `23505: duplicate key value violates unique constraint "secrets_name_idx"` on the second call, via the Supabase MCP connector's `execute_sql`. | Reordered the function to delete the old Vault secret(s) *before* creating the new one, not after (`0002_platform_connections.sql`, reapplied live). Re-ran the same test plus five more scenarios (round-trip decrypt correctness, refresh preserving label/scope via `coalesce`, no orphaned Vault rows after a refresh, two different platforms for one user coexisting, and disconnecting one platform not touching another's secrets) -- all 6 passed against the live database, then the test rows were deleted and verified gone. |
+| **The real Stripe webhook route was unreachable -- Clerk auth blocked it before Stripe's own signature check ever ran.** `proxy.ts`'s public-route allowlist listed `/api/webhooks/stripe`, but the actual route (built in an earlier feature) lives at `app/api/stripe/webhook/route.ts` -> `/api/stripe/webhook`. Every real Stripe webhook delivery would have hit Clerk's blanket `/api/*` auth gate first and gotten a 401 with no session, meaning `checkout.session.completed`/`customer.subscription.updated`/`.deleted` would never reach the signature-verification code that actually syncs `subscriptions` -- billing would silently never update after the first checkout. Pre-existing since the Stripe feature shipped, not introduced this session; caught only because this pass tested every route systematically instead of just the new ones. | `curl -X POST /api/stripe/webhook` (no signature, no session) returned `401 {"error":"Not authenticated."}` -- the wrong failure. It should reach Stripe's own signature check and fail *there* instead. | Fixed the path in `proxy.ts`'s `isPublicRoute` matcher to the real route, `/api/stripe/webhook`. Re-verified live: same request now returns `400 {"error":"Missing stripe-signature header."}` -- Clerk correctly steps aside, Stripe's own verification correctly rejects an unsigned request. |
+
+Full beta test scope and results:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | clean |
+| `npm run build` | clean, 34 routes (up from 28) |
+| `npm run lint` | clean except the 2 pre-existing ViralVision findings |
+| Supabase security advisor, before and after both fixes | 1 finding both times (`stripe_webhook_events` RLS-enabled-no-policy, intentional -- service-role-only table) |
+| Live DB test: `platform_connections` Vault round-trip (6 scenarios) | 6/6, after the fix above |
+| Live `next dev`, all 18 API routes, unauthenticated | 401 JSON, none crashed |
+| Live `next dev`, all 14 page routes, unauthenticated | 307 to `/sign-in` for every `/dashboard/*` route, 200 for `/`, `/sign-in`, `/sign-up` |
+| Live `next dev`, both webhook routes, unauthenticated + unsigned | Both correctly bypass Clerk and fail on their own signature check instead (Clerk: `400 Invalid signature`; Stripe: `400 Missing stripe-signature header`, after the fix above) |
+| Live `next dev`, cron trigger, no/wrong/right `CRON_SECRET` | 401, 401, then reaches the real DB query (failed only because this run's `SUPABASE_SERVICE_ROLE_KEY` was a placeholder, not a real one -- expected, see below) |
+
+What this pass could **not** verify, honestly: there is no real Clerk
+session available in this sandbox (no way to mint one without a real
+`CLERK_SECRET_KEY` and a test user), so no route's actual business logic
+past the auth gate was exercised end-to-end over HTTP -- every 401/307
+above confirms the gate itself, not what's behind it. Real third-party
+credentials (Anthropic, Tavily, Cloudinary, Mem0, YouTube Data API v3,
+and the four new OAuth apps' client secrets) are likewise unavailable
+here, so live calls to those providers are unverified beyond their
+documented contracts (checked against live docs/MCP connectors while
+building, per the discipline note above) and, for the new
+`platform_connections` schema specifically, the direct SQL test above --
+which is the strongest test actually available without those keys, since
+it exercises the real database rather than a mock. Getting past this
+ceiling needs the user to supply real keys; see `.env.example` and
+`README.md`'s "Local setup" for exactly which ones.
+
+## GitHub Actions CI had never actually passed
+
+Opening the PR for the above and looking at its real GitHub Actions
+checks (not just the local sandbox verification every feature's commit
+message has been citing) surfaced that `.github/workflows/ci.yml` has
+failed on **every run since the Mem0 feature landed** — every PR in this
+repo's history, all the way back, confirmed via `list_workflow_runs`.
+"Local `npm run build` passes" was never the same claim as "CI passes,"
+and nothing had checked the second one until now.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `npm ci` (what CI runs, unlike an interactive `npm install`) fails outright with `ERESOLVE`: `mem0ai@3.1.8`'s optional peer `@anthropic-ai/sdk@^0.40.1` conflicts with the root's real `^0.126.0`. `--legacy-peer-deps` was used locally when `mem0ai` was first installed (documented above), but that flag was never persisted anywhere -- a fresh `npm ci` in CI has no way to know to use it. | `npm ci` in the `build (22.x)`/`build (24.x)` jobs: `npm error ERESOLVE could not resolve ... peerOptional @anthropic-ai/sdk@"^0.40.1" from mem0ai@3.1.8`. Reproduced locally with `rm -rf node_modules && npm ci` (no flags). | Added `.npmrc` with `legacy-peer-deps=true` at the repo root, so both local installs and CI resolve the same way without a manual flag. Re-verified: `rm -rf node_modules && npm ci` succeeds with 0 vulnerabilities, no `.npmrc` present before this fix. |
+| Even past that, `npm run build` in CI would still fail: the workflow sets no env vars, and `ClerkProvider` needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at build time (documented above for the local case) -- the workflow predates Clerk being added to this app and was never updated. | Reproduced locally: `npm run build` with no env vars set fails prerendering `/_not-found` the same way it did the first time this was hit, several features ago. | Added a syntactically-valid placeholder `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` to the `Build` step's `env:` in `ci.yml` -- safe to check in since publishable keys are meant to be public (embedded in the client bundle), it only needs to satisfy Clerk's key-format validation, not authenticate anything. Re-verified: `npm run build` with only that one env var set completes and emits all 34 routes. |
+
+Not fixed, and correctly so -- pre-existing on `main`, not this PR's:
+**`Workers Builds: debate-ui-gemini`** (a Cloudflare Pages/Workers Git
+integration check) fails on every commit in this repo's history,
+confirmed by checking PR #7's checks before any of this session's changes
+existed. There is no `wrangler.toml` or Cloudflare Pages config anywhere
+in this repo for a code change to fix -- it's an external Cloudflare
+project pointed at this repo, configured outside it. `Supabase Preview`
+is `skipped`, not failing, and points at a different Supabase project ref
+than the one this app actually uses -- also external configuration, not
+a red check this PR owns.
+
 ---
 
 A record of actually running everything in this repo — the Next.js app in a

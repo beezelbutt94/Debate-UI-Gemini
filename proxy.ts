@@ -134,14 +134,18 @@ async function applyTenantRouting(req: NextRequest): Promise<NextResponse | unde
 }
 
 // Reachable without authentication: the marketing/dashboard root, Clerk's
-// own auth pages, and the two signature-verified webhook endpoints (Clerk
-// and Stripe never send a session, they send a svix/stripe signature).
+// own auth pages, the two signature-verified webhook endpoints (Clerk and
+// Stripe never send a session, they send a svix/stripe signature), and the
+// cron publish trigger (Vercel Cron / an external scheduler never sends a
+// Clerk session either -- it authenticates with CRON_SECRET as a bearer
+// token, checked inside app/api/cron/publish/route.ts itself).
 const isPublicRoute = createRouteMatcher([
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/webhooks/clerk',
-  '/api/webhooks/stripe',
+  '/api/stripe/webhook',
+  '/api/cron/(.*)',
 ]);
 
 // Everything else under /dashboard or /api requires a signed-in user.

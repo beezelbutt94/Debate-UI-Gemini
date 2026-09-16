@@ -32,4 +32,13 @@ jobs:
       run: npm run typecheck
 
     - name: Build
+      # ClerkProvider reads NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY during static
+      # prerendering (see .env.example), so `next build` hard-fails without
+      # one -- even in CI, which never had a real Clerk app to point at.
+      # Publishable keys are meant to be public (embedded in the client
+      # bundle), so a syntactically-valid placeholder is safe to check in
+      # here; it only needs to satisfy Clerk's own format validation, not
+      # authenticate anything. Decodes to "dummy.clerk.accounts.dev$".
+      env:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZHVtbXkuY2xlcmsuYWNjb3VudHMuZGV2JA
       run: npm run build

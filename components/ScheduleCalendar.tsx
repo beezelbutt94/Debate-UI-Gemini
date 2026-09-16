@@ -103,22 +103,31 @@ export function ScheduleCalendar() {
           {posts.map((post) => (
             <li
               key={post.id}
-              className="flex items-center gap-3 p-4 rounded-xl bg-neutral-950 border border-neutral-800"
+              className="flex flex-col gap-1 p-4 rounded-xl bg-neutral-950 border border-neutral-800"
             >
-              <span className="text-[10px] font-mono uppercase text-amber-400 shrink-0 w-24">
-                {post.platform.replace('_', ' ')}
-              </span>
-              <input
-                type="datetime-local"
-                defaultValue={toLocalInputValue(post.publish_at)}
-                onChange={(e) => e.target.value && handleReschedule(post.id, new Date(e.target.value).toISOString())}
-                className="bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-xs text-neutral-200"
-              />
-              <span className="flex-1 text-xs text-neutral-400 truncate">{post.caption ?? '(no caption)'}</span>
-              <span className="text-[10px] font-mono uppercase text-neutral-600">{post.status}</span>
-              <Button variant="ghost" size="sm" onClick={() => handleDelete(post.id)}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-mono uppercase text-amber-400 shrink-0 w-24">
+                  {post.platform.replace('_', ' ')}
+                </span>
+                <input
+                  type="datetime-local"
+                  defaultValue={toLocalInputValue(post.publish_at)}
+                  onChange={(e) => e.target.value && handleReschedule(post.id, new Date(e.target.value).toISOString())}
+                  className="bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-xs text-neutral-200"
+                />
+                <span className="flex-1 text-xs text-neutral-400 truncate">{post.caption ?? '(no caption)'}</span>
+                <span
+                  className={`text-[10px] font-mono uppercase ${post.status === 'failed' ? 'text-rose-400' : 'text-neutral-600'}`}
+                >
+                  {post.status}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(post.id)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              {post.status === 'failed' && post.publish_error && (
+                <span className="text-[10px] text-rose-400 pl-[6.5rem]">{post.publish_error}</span>
+              )}
             </li>
           ))}
         </ul>
