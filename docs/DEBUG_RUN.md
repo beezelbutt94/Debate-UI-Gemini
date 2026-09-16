@@ -68,6 +68,51 @@ it, not assumed from training data -- and the cases where that check
 changed the plan (vidIQ/Metricool in feature 2, Semrush/Ahrefs in feature
 6, Metricool again in feature 7) were exactly the cases worth checking.
 
+## OAuth connections + publish trigger, then a full beta test pass
+
+Same build discipline as the 7 features, plus one thing done differently
+this time: after `typecheck`/`build`/`lint` came back clean, a systematic
+beta test was run against every route in the app (not just the new ones)
+with the dev server pointed at the real `unseen-reels` Supabase project,
+specifically *because* "clean lint" had never actually caught a wiring
+bug between two features built in different sessions -- and it hadn't
+been checked. It found two, both real, both now fixed.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| **`store_platform_connection()`'s Vault secret naming crashed on the very first reconnect/refresh.** The function derives a deterministic `vault.secrets.name` from `platform:kind:user_id` and created the *new* secret before deleting the *old* one -- `vault.secrets.name` has a unique constraint, so any second call for the same user+platform (exactly what `lib/publish/tokens.ts`'s token-refresh path does on every expiring access token) would throw. This would have broken every connected account within one access-token lifetime (as short as ~55 minutes for TikTok/Canva) after the first successful connect. | Reproduced live: a `do $$ ... $$` block against the real database calling `store_platform_connection()` twice for the same user+platform (simulating connect, then a token refresh) failed with `23505: duplicate key value violates unique constraint "secrets_name_idx"` on the second call, via the Supabase MCP connector's `execute_sql`. | Reordered the function to delete the old Vault secret(s) *before* creating the new one, not after (`0002_platform_connections.sql`, reapplied live). Re-ran the same test plus five more scenarios (round-trip decrypt correctness, refresh preserving label/scope via `coalesce`, no orphaned Vault rows after a refresh, two different platforms for one user coexisting, and disconnecting one platform not touching another's secrets) -- all 6 passed against the live database, then the test rows were deleted and verified gone. |
+| **The real Stripe webhook route was unreachable -- Clerk auth blocked it before Stripe's own signature check ever ran.** `proxy.ts`'s public-route allowlist listed `/api/webhooks/stripe`, but the actual route (built in an earlier feature) lives at `app/api/stripe/webhook/route.ts` -> `/api/stripe/webhook`. Every real Stripe webhook delivery would have hit Clerk's blanket `/api/*` auth gate first and gotten a 401 with no session, meaning `checkout.session.completed`/`customer.subscription.updated`/`.deleted` would never reach the signature-verification code that actually syncs `subscriptions` -- billing would silently never update after the first checkout. Pre-existing since the Stripe feature shipped, not introduced this session; caught only because this pass tested every route systematically instead of just the new ones. | `curl -X POST /api/stripe/webhook` (no signature, no session) returned `401 {"error":"Not authenticated."}` -- the wrong failure. It should reach Stripe's own signature check and fail *there* instead. | Fixed the path in `proxy.ts`'s `isPublicRoute` matcher to the real route, `/api/stripe/webhook`. Re-verified live: same request now returns `400 {"error":"Missing stripe-signature header."}` -- Clerk correctly steps aside, Stripe's own verification correctly rejects an unsigned request. |
+
+Full beta test scope and results:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | clean |
+| `npm run build` | clean, 34 routes (up from 28) |
+| `npm run lint` | clean except the 2 pre-existing ViralVision findings |
+| Supabase security advisor, before and after both fixes | 1 finding both times (`stripe_webhook_events` RLS-enabled-no-policy, intentional -- service-role-only table) |
+| Live DB test: `platform_connections` Vault round-trip (6 scenarios) | 6/6, after the fix above |
+| Live `next dev`, all 18 API routes, unauthenticated | 401 JSON, none crashed |
+| Live `next dev`, all 14 page routes, unauthenticated | 307 to `/sign-in` for every `/dashboard/*` route, 200 for `/`, `/sign-in`, `/sign-up` |
+| Live `next dev`, both webhook routes, unauthenticated + unsigned | Both correctly bypass Clerk and fail on their own signature check instead (Clerk: `400 Invalid signature`; Stripe: `400 Missing stripe-signature header`, after the fix above) |
+| Live `next dev`, cron trigger, no/wrong/right `CRON_SECRET` | 401, 401, then reaches the real DB query (failed only because this run's `SUPABASE_SERVICE_ROLE_KEY` was a placeholder, not a real one -- expected, see below) |
+
+What this pass could **not** verify, honestly: there is no real Clerk
+session available in this sandbox (no way to mint one without a real
+`CLERK_SECRET_KEY` and a test user), so no route's actual business logic
+past the auth gate was exercised end-to-end over HTTP -- every 401/307
+above confirms the gate itself, not what's behind it. Real third-party
+credentials (Anthropic, Tavily, Cloudinary, Mem0, YouTube Data API v3,
+and the four new OAuth apps' client secrets) are likewise unavailable
+here, so live calls to those providers are unverified beyond their
+documented contracts (checked against live docs/MCP connectors while
+building, per the discipline note above) and, for the new
+`platform_connections` schema specifically, the direct SQL test above --
+which is the strongest test actually available without those keys, since
+it exercises the real database rather than a mock. Getting past this
+ceiling needs the user to supply real keys; see `.env.example` and
+`README.md`'s "Local setup" for exactly which ones.
+
 ---
 
 A record of actually running everything in this repo — the Next.js app in a

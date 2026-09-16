@@ -74,6 +74,19 @@ begin
     from public.platform_connections
     where user_id = p_user_id and platform = p_platform;
 
+  -- vault.secrets.name is unique, and this function derives a deterministic
+  -- name from platform+kind+user (so a lookup never needs a name lookup
+  -- table). That means the OLD secret(s) must be deleted *before* creating
+  -- the new one on a reconnect/refresh, or vault.create_secret throws a
+  -- unique-constraint violation on the second connect for the same
+  -- user+platform -- caught live against the real database, not assumed.
+  if v_old_access_secret_id is not null then
+    delete from vault.secrets where id = v_old_access_secret_id;
+  end if;
+  if v_old_refresh_secret_id is not null then
+    delete from vault.secrets where id = v_old_refresh_secret_id;
+  end if;
+
   v_access_secret_id := vault.create_secret(p_access_token, p_platform || ':access:' || p_user_id);
   if p_refresh_token is not null then
     v_refresh_secret_id := vault.create_secret(p_refresh_token, p_platform || ':refresh:' || p_user_id);
@@ -96,13 +109,6 @@ begin
         expires_at = excluded.expires_at,
         scope = coalesce(excluded.scope, public.platform_connections.scope),
         updated_at = now();
-
-  if v_old_access_secret_id is not null then
-    delete from vault.secrets where id = v_old_access_secret_id;
-  end if;
-  if v_old_refresh_secret_id is not null then
-    delete from vault.secrets where id = v_old_refresh_secret_id;
-  end if;
 end;
 $$;
 
