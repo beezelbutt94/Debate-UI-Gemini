@@ -18,12 +18,15 @@ record if you're archaeology-minded.
   provider)
 - Stripe (Creator/Pro/Studio subscription billing, quota-gated usage)
 - Tavily (`/extract`) for URL content extraction
-- Anthropic Claude (Messages API, tool-use/structured output) for the
-  actual audit synthesis
+- YouTube Data API v3 for real channel/upload stats
+- Cloudinary (signed direct-to-cloud video upload, frame + waveform
+  extraction via delivery transformations)
+- Anthropic Claude (Messages API, tool-use/structured output, and vision
+  for the Upload Diagnostic) for the actual audit synthesis
 
 ## What's built
 
-Two features, real end to end, not stubs:
+Three features, real end to end, not stubs:
 
 ### Viral Gap Analyzer
 
@@ -46,6 +49,7 @@ Two features, real end to end, not stubs:
    - **Refunds** the quota unit via `refund_analysis_quota()` if any step
      after the quota check fails — a scrape or LLM error should never
      permanently cost a user one of their monthly analyses.
+
 ### Creator Account Deep-Dive
 
 1. `app/dashboard/deep-dive/page.tsx` + `components/DeepDiveForm.tsx` —
@@ -76,6 +80,39 @@ Two features, real end to end, not stubs:
    - Writes to `audit_reports` (`source_type: 'account'`) and refunds the
      quota unit on any failure, same as the Analyzer.
 
+### Multimodal Video Upload Diagnostic
+
+1. `app/dashboard/upload/page.tsx` + `components/UploadDiagnosticForm.tsx`
+   — pick an MP4/MOV, watch it upload with a real progress bar, then see
+   visual hook clarity, audio balance, text-overlay pacing, B-roll
+   recommendations, retention boosters, and timeline-pinned feedback.
+2. **The upload itself never touches our server.** `app/api/uploads/sign`
+   mints a Cloudinary-signed upload (`lib/cloudinary.ts`,
+   `createSignedVideoUpload`) scoped to a per-user folder
+   (`viralengine/uploads/<clerk user id>/`); the browser then POSTs the
+   video bytes straight to Cloudinary. This is the real fix for Vercel's
+   ~4.5MB serverless request body ceiling — a multi-hundred-MB video
+   proxied through our own route would fail immediately.
+3. `app/api/analyze/upload/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other two features.
+   - Refuses any `publicId` outside the caller's own upload folder (403)
+     — otherwise one user could hand us someone else's asset to analyze
+     for free.
+   - Looks up the asset's *authoritative* duration via Cloudinary's Admin
+     API rather than trusting whatever the client claims.
+   - Picks up to 6 frame timestamps (`pickFrameTimestamps`, always
+     including the 0–3s hook window), fetches each as a real JPEG via
+     Cloudinary's `so_<seconds>` on-the-fly transformation, and fetches a
+     real waveform PNG via `fl_waveform` — no separate rendering pipeline
+     of our own, Cloudinary generates and caches these on first request.
+   - Sends the actual frame images and waveform image (as base64, not
+     descriptions) to Claude's vision input (`lib/anthropic.ts`,
+     `generateUploadDiagnosis`) — the model looks at real pixels, and its
+     system prompt requires every timeline timestamp to be one it was
+     actually shown a frame for.
+   - Writes to `audit_reports` (`source_type: 'upload'`) and refunds the
+     quota unit on any failure.
+
 ### Shared platform pieces
 
 - Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
@@ -99,19 +136,18 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Multimodal Video Upload Diagnostic, Script & Storyboard Generator,
-Creator Tool Suite Hub, Competitor Espionage Engine, and the
-Scheduling/Publishing Planner. See **`docs/VIRALENGINE_ROADMAP.md`** — it
-names the exact schema tables (already created, see below) and API routes
-each one needs, and which already-verified API contracts (Metricool,
-Cloudinary, Mem0, OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs)
-to build against.
+Script & Storyboard Generator, Creator Tool Suite Hub, Competitor
+Espionage Engine, and the Scheduling/Publishing Planner. See
+**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
+(already created, see below) and API routes each one needs, and which
+already-verified API contracts (Metricool, Mem0, OpusClip, Descript,
+HyperFrames, Canva, Semrush, Ahrefs) to build against.
 
 ## Local setup
 
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
-   Stripe, Anthropic, Tavily, and YouTube Data API v3 keys.
+   Stripe, Anthropic, Tavily, YouTube Data API v3, and Cloudinary keys.
 3. Apply `supabase/migrations/0001_viralengine_init.sql` to your Supabase
    project (`supabase db push`, or paste into the SQL editor). A live
    project already has it applied — project ref `dcesehxmssqsszzasott`
@@ -141,8 +177,8 @@ once step 4 above is done):
 - `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
 - `creators_profiles` — niche, per-platform handles, cached connected
   metrics, Mem0 agent key.
-- `audit_reports` — every analysis result (Gap Analyzer and Deep-Dive now,
-  Upload Diagnostic eventually), JSONB payload + viral score + timestamped
+- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive, and
+  Upload Diagnostic), JSONB payload + viral score + timestamped
   recommendations.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.

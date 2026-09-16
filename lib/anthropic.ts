@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ViralGapAnalysis, TimelineRecommendation, GrowthBlueprint } from '@/lib/types';
+import type { ViralGapAnalysis, TimelineRecommendation, GrowthBlueprint, UploadDiagnosis } from '@/lib/types';
 
 let cached: Anthropic | null = null;
 
@@ -311,5 +311,175 @@ export async function generateGrowthBlueprint(params: {
       posting_blindspots: input.posting_blindspots,
       per_platform_notes: input.per_platform_notes,
     },
+  };
+}
+
+const UPLOAD_TOOL_NAME = 'submit_upload_diagnosis';
+
+const UPLOAD_TOOL: Anthropic.Tool = {
+  name: UPLOAD_TOOL_NAME,
+  description:
+    'Submit the structured Multimodal Video Upload Diagnostic: visual hook clarity, audio/voice ' +
+    'balance, B-roll recommendations, text-overlay read speed, retention boosters, and ' +
+    'timeline-pinned feedback -- grounded in the actual video frames and waveform image provided.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      viral_score: { type: 'number', description: '0-100 overall viral potential score.' },
+      visual_hook_clarity: {
+        type: 'object',
+        properties: {
+          score: { type: 'number', description: '0-100, based on the first 1-2 frames provided.' },
+          verdict: { type: 'string', enum: ['strong', 'moderate', 'weak'] },
+          notes: { type: 'string' },
+        },
+        required: ['score', 'verdict', 'notes'],
+      },
+      audio_balance: {
+        type: 'object',
+        properties: {
+          score: { type: 'number', description: '0-100, based on the waveform image provided.' },
+          notes: {
+            type: 'string',
+            description:
+              'Read the waveform: flat/quiet stretches, clipping (solid blocks), voice-vs-music balance cues.',
+          },
+        },
+        required: ['score', 'notes'],
+      },
+      text_overlay_pacing: {
+        type: 'object',
+        properties: {
+          assessment: {
+            type: 'string',
+            description:
+              'Read any on-screen text visible in the frames and assess whether it would be readable at a normal viewing pace, or null-equivalent text if none is visible.',
+          },
+        },
+        required: ['assessment'],
+      },
+      b_roll_recommendations: { type: 'array', items: { type: 'string' } },
+      retention_boosters: { type: 'array', items: { type: 'string' } },
+      timeline_recommendations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            timestamp_seconds: {
+              type: 'number',
+              description: 'Must be one of the frame timestamps actually provided.',
+            },
+            issue: { type: 'string' },
+            recommendation: { type: 'string' },
+            severity: { type: 'string', enum: ['critical', 'moderate', 'minor'] },
+          },
+          required: ['timestamp_seconds', 'issue', 'recommendation', 'severity'],
+        },
+      },
+    },
+    required: [
+      'viral_score',
+      'visual_hook_clarity',
+      'audio_balance',
+      'text_overlay_pacing',
+      'b_roll_recommendations',
+      'retention_boosters',
+      'timeline_recommendations',
+    ],
+  },
+};
+
+const UPLOAD_SYSTEM_PROMPT = `You are ViralEngine's Multimodal Video Upload Diagnostic reviewer.
+You are given a series of real still frames extracted from an uploaded short-form video at named
+timestamps, followed by a real waveform image rendering the video's audio track. These are actual
+pixels from the actual upload, not descriptions -- look at them directly.
+
+Apply the same short-form benchmarks used elsewhere in ViralEngine: a strong hook needs to land in
+the first 1-2 frames you're shown (the 0-3s window). Judge audio balance from the waveform's shape
+(flat/silent stretches, clipped/solid blocks suggesting distortion, relative loudness across the
+timeline) -- you cannot hear the audio, so ground every audio claim in what the waveform image
+actually shows. Judge text-overlay pacing from any on-screen text visible in the frames.
+
+Every timeline_recommendations entry's timestamp_seconds must be one of the frame timestamps you
+were actually given -- do not invent a timestamp for a frame you were not shown.
+
+Call submit_upload_diagnosis exactly once with your complete structured diagnosis.`;
+
+export interface UploadDiagnosisResult {
+  viral_score: number;
+  analysis: UploadDiagnosis;
+  timeline_recommendations: TimelineRecommendation[];
+}
+
+export async function generateUploadDiagnosis(params: {
+  frames: { timestampSeconds: number; base64: string; mediaType: string }[];
+  waveform: { base64: string; mediaType: string } | null;
+  durationSeconds: number;
+}): Promise<UploadDiagnosisResult> {
+  const anthropic = getAnthropic();
+
+  const content: Anthropic.ContentBlockParam[] = [
+    {
+      type: 'text',
+      text:
+        `Video duration: ${params.durationSeconds.toFixed(1)}s. ` +
+        `${params.frames.length} frames follow, each preceded by its timestamp.`,
+    },
+  ];
+
+  for (const frame of params.frames) {
+    content.push({ type: 'text', text: `Frame at ${frame.timestampSeconds}s:` });
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: frame.mediaType as 'image/jpeg', data: frame.base64 },
+    });
+  }
+
+  if (params.waveform) {
+    content.push({ type: 'text', text: 'Audio waveform for the full video:' });
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: params.waveform.mediaType as 'image/png', data: params.waveform.base64 },
+    });
+  }
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 4096,
+    system: UPLOAD_SYSTEM_PROMPT,
+    tools: [UPLOAD_TOOL],
+    tool_choice: { type: 'tool', name: UPLOAD_TOOL_NAME },
+    messages: [{ role: 'user', content }],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === UPLOAD_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected upload diagnosis.');
+  }
+
+  const input = toolUse.input as {
+    viral_score: number;
+    visual_hook_clarity: UploadDiagnosis['visual_hook_clarity'];
+    audio_balance: UploadDiagnosis['audio_balance'];
+    text_overlay_pacing: UploadDiagnosis['text_overlay_pacing'];
+    b_roll_recommendations: string[];
+    retention_boosters: string[];
+    timeline_recommendations: TimelineRecommendation[];
+  };
+
+  return {
+    viral_score: input.viral_score,
+    analysis: {
+      visual_hook_clarity: input.visual_hook_clarity,
+      audio_balance: input.audio_balance,
+      text_overlay_pacing: input.text_overlay_pacing,
+      b_roll_recommendations: input.b_roll_recommendations,
+      retention_boosters: input.retention_boosters,
+      frames_analyzed: params.frames.length,
+    },
+    timeline_recommendations: input.timeline_recommendations,
   };
 }

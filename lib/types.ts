@@ -63,7 +63,16 @@ export interface GrowthBlueprint {
   per_platform_notes: Record<string, string>;
 }
 
-export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint> {
+export interface UploadDiagnosis {
+  visual_hook_clarity: HookEvaluation;
+  audio_balance: { score: number; notes: string };
+  text_overlay_pacing: { assessment: string };
+  b_roll_recommendations: string[];
+  retention_boosters: string[];
+  frames_analyzed: number;
+}
+
+export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis> {
   id: string;
   user_id: string;
   creator_profile_id: string | null;

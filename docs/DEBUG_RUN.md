@@ -10,12 +10,13 @@
 
 ## ViralEngine (current app)
 
-Findings from actually building and running the ViralEngine rebuild: real
-`npm run typecheck`, `npm run build`, `npm run lint`, and a live `next dev`
-smoke test (curl against `/`, `/dashboard/analyze`, `/api/analyze/url`,
-`/sign-in`), plus real infrastructure checks via the Supabase and Stripe
-MCP connectors (`get_advisors`, `information_schema` queries against the
-live `unseen-reels` project).
+Findings from actually building and running the ViralEngine rebuild
+(Viral Gap Analyzer, Creator Account Deep-Dive, Multimodal Video Upload
+Diagnostic): real `npm run typecheck`, `npm run build`, `npm run lint`,
+and repeated live `next dev` smoke tests against every route added, plus
+real infrastructure checks via the Supabase and Stripe MCP connectors
+(`get_advisors`, `information_schema` queries against the live
+`unseen-reels` project).
 
 | Finding | Evidence | Fix |
 |---|---|---|
@@ -28,14 +29,17 @@ live `unseen-reels` project).
 | A scrape or LLM failure after the quota RPC succeeded would permanently cost the user an analysis for nothing (mirrors the exact bug already fixed once in this repo for ViralSync's credits — see `fail_campaign_and_refund()` below). | Code-review of the failure path before shipping, not a live incident. | Added `refund_analysis_quota()` (same `SECURITY DEFINER`/service-role-only pattern) and call it from every catch branch in `app/api/analyze/url/route.ts`, including the Tavily-rate-limit branch. |
 | Tavily's `/extract` can rate-limit (429) or hang. | Verified the success response shape live via the Tavily MCP connector against a real YouTube Shorts URL; the 429/timeout paths are handled defensively rather than reproduced live (no way to force Tavily to rate-limit on demand). | `lib/tavily.ts`: typed `TavilyRateLimitError` carrying `Retry-After`, propagated as a `429` with that header; a 15s `AbortController` timeout so a hung request can't pin a serverless invocation open indefinitely. |
 | `auth.jwt()->>'sub'` RLS policies only resolve once Clerk is configured as a Supabase "Third Party Auth" provider in the dashboard — a manual step no API/CLI tool here can perform. | N/A — a configuration gap, not a code bug. | Documented prominently in `.env.example`. The shipped Viral Gap Analyzer route avoids depending on it entirely: it reads/writes via the service-role client with an explicit `user_id` filter sourced from Clerk's server-verified session, not the RLS-scoped client. |
-| Multimodal video upload size/format constraints (Cloudinary signed uploads) | N/A | Not applicable yet — that feature isn't built (see `docs/VIRALENGINE_ROADMAP.md`); flagged there rather than solved speculatively here. |
+| Multimodal video upload size/format constraints: a multi-hundred-MB video proxied through our own serverless function would exceed Vercel's ~4.5MB request body ceiling. | N/A — no way to reproduce a real oversized-payload rejection without a deployed Vercel instance and a large test file in this session. | `app/api/uploads/sign` mints Cloudinary-signed upload credentials; the browser (`components/UploadDiagnosticForm.tsx`, via `XMLHttpRequest` for real progress events) POSTs the video bytes straight to Cloudinary. Our server never sees the file. |
+| `@anthropic-ai/sdk` was pinned to `^0.32.1` from training-data memory rather than checked against the registry — nearly 100 minor versions stale. Its old types don't export `ContentBlockParam`, the exact vision-input type the Upload Diagnostic needed. | `tsc --noEmit`: `'Anthropic' has no exported member named 'ContentBlockParam'`. `npm view @anthropic-ai/sdk version` -> real latest is `0.126.0`. | Bumped to `^0.126.0`, reinstalled, re-typechecked/built/linted clean against the new types (which do export `ContentBlockParam`, and whose `Model` union includes `'claude-sonnet-5'` as a named literal — confirms that model id was correct all along). `@clerk/nextjs`, `stripe`, and `svix` are each a major version behind too (checked via the same `npm view` sweep) but not currently broken by it — deliberately not bumped in this pass; see `docs/VIRALENGINE_ROADMAP.md`. |
+| One user could pass another user's (or any public) Cloudinary `publicId` to the diagnostic route and get it analyzed on their own quota. | Code-review of the route before shipping, not a live incident. | `app/api/analyze/upload/route.ts` refuses any `publicId` outside the caller's own `viralengine/uploads/<clerk id>/` prefix (403) before spending a Claude call on it, and re-fetches the asset's real duration from Cloudinary's Admin API rather than trusting the client's claim. |
 
 Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
-`npm run build` (all 14 routes compile), `npm run lint` (clean except the
-2 pre-existing ViralVision findings above), and a live `next dev` pass —
-`GET /` -> 200, `GET /dashboard/analyze` unauthenticated -> 307 to
-`/sign-in`, `POST /api/analyze/url` unauthenticated -> 401 JSON,
-`GET /sign-in` -> 200.
+`npm run build` (all 19 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings above), and live `next dev` passes —
+`GET /` -> 200, `GET /dashboard/{analyze,deep-dive,upload}` unauthenticated
+-> 307 to `/sign-in`, `POST /api/{analyze/url,creators/deep-dive,
+uploads/sign,analyze/upload}` unauthenticated -> 401 JSON, `GET /sign-in`
+-> 200.
 
 ---
 

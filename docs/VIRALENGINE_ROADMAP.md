@@ -14,7 +14,7 @@ whole spec's schema up front, not just the one shipped feature.
 |---|---|---|
 | 1 | Viral Gap Analyzer (URL Ingestion) | **Shipped** — see README.md |
 | 2 | Creator Account Deep-Dive | **Shipped** — see README.md |
-| 3 | Multimodal Video Upload Diagnostic | Not started |
+| 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
 | 4 | Algorithmic Script & Storyboard Generator | Not started |
 | 5 | Creator Tool Suite Hub | Not started |
 | 6 | Competitor Espionage & Gap Engine | Not started |
@@ -46,26 +46,51 @@ One addition worth reusing forward: a failed platform fetch is recorded as
 the whole request — a bad TikTok handle shouldn't block a YouTube result
 when both were requested together.
 
-## 3. Multimodal Video Upload Diagnostic
+## 3. Multimodal Video Upload Diagnostic — shipped
 
-- **Route**: `app/api/analyze/upload/route.ts` (new).
-- **Tables**: `audit_reports` with `source_type: 'upload'`.
-- **Real API contract**: Cloudinary MCP connector has `sign-upload` (a
-  verified, real signed-upload-preset flow — this is exactly the right
-  primitive for direct-from-browser video upload without routing the
-  file through the Next.js server). The route should mint a signed
-  upload via Cloudinary and hand the browser a direct-upload URL, not
-  proxy the video bytes itself.
-- **Rate-limit / payload-size note carried over from the debug pass**:
-  Vercel serverless functions have a hard request body ceiling (4.5MB on
-  the default plan) — this is exactly why the upload must go
-  browser→Cloudinary directly via a signed preset, never
-  browser→Next.js route→Cloudinary. Getting this wrong is the most likely
-  first bug in this feature.
-- Frame/audio extraction for "visual hook clarity, audio/voice balance,
-  B-roll recommendations" needs Cloudinary's video analysis add-ons or a
-  separate frame-extraction step before the Claude call — not yet
-  verified against a real Cloudinary account in this session.
+Built exactly as this section originally proposed, with one addition the
+original plan didn't call out: no Cloudinary "video analysis add-on" was
+needed for frame/audio extraction. Cloudinary's own on-the-fly delivery
+transformations do it for free —  `so_<seconds>` extracts a real JPEG
+frame at a timestamp, `fl_waveform` renders a real waveform PNG — both
+generated lazily on first request and cached, no separate processing step
+or add-on subscription. The frames and waveform are sent as actual base64
+image blocks to Claude's vision input (`lib/anthropic.ts`,
+`generateUploadDiagnosis`), not described in text — the model looks at
+real pixels. The signed-upload flow matches the Cloudinary MCP
+connector's own `sign-upload` contract, verified live before writing
+`lib/cloudinary.ts`'s manual HMAC signing (sorted params + api_secret,
+SHA-1 — Cloudinary's textbook algorithm, unchanged for years).
+
+The payload-size note from the original plan was correct and is exactly
+what got built: the browser uploads straight to Cloudinary
+(`app/api/uploads/sign` only mints credentials), never through our own
+serverless function.
+
+One security addition worth reusing forward for any future
+user-owns-this-asset check: `app/api/analyze/upload/route.ts` refuses any
+`publicId` outside the caller's own `viralengine/uploads/<clerk id>/`
+folder prefix (403) before doing anything else, and re-fetches the
+asset's real duration from Cloudinary's Admin API rather than trusting
+whatever the client claims.
+
+**Also surfaced here, worth fixing before shipping feature 4**: every
+third-party npm dependency added in this session so far
+(`@anthropic-ai/sdk`, `@clerk/nextjs`, `stripe`, `svix`,
+`@supabase/supabase-js`) was pinned from training-data memory of a
+plausible version rather than checked against the npm registry.
+`@anthropic-ai/sdk` was nearly 100 minor versions stale (`^0.32.1` vs.
+the real latest `0.126.0`) and its old types didn't even export
+`ContentBlockParam`, which is exactly the vision-input type this feature
+needed — caught immediately by `tsc`, not silently wrong. Bumped just
+that one dependency (verified via `npm view <pkg> version`, then
+typechecked/built/lint clean against the new types) since it was the one
+actually blocking; `@clerk/nextjs` (^6.9.6 vs. 7.9.4), `stripe` (^17.2.1
+vs. 22.6.2), and `svix` (^1.42.0 vs. 2.5.0) are each a major version
+behind but not currently broken — bumping those now is a real,
+not-yet-done follow-up, deliberately not bundled into this feature to
+avoid destabilizing the two already-shipped ones on an unrelated major
+upgrade.
 
 ## 4. Algorithmic Script & Storyboard Generator
 
