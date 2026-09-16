@@ -4,7 +4,7 @@
 # but slow and large (torch alone is several GB with CUDA extras).
 faster-whisper==1.0.3
 librosa==0.10.2
-torch==2.4.1
+torch==2.13.0
 open_clip_torch==2.26.1
 opencv-python-headless==4.10.0.84
 mediapipe==0.10.14
