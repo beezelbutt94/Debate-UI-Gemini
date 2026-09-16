@@ -77,13 +77,14 @@ create policy "creators_profiles_all_own" on public.creators_profiles
   with check (user_id = (auth.jwt()->>'sub'));
 
 -- ---------------------------------------------------------------------
--- audit_reports — Viral Gap Analyzer / Deep-Dive / Upload Diagnostic output
+-- audit_reports — Viral Gap Analyzer / Deep-Dive / Upload Diagnostic /
+-- Competitor Espionage output
 -- ---------------------------------------------------------------------
 create table public.audit_reports (
   id uuid primary key default gen_random_uuid(),
   user_id text not null references public.users(id) on delete cascade,
   creator_profile_id uuid references public.creators_profiles(id) on delete set null,
-  source_type text not null check (source_type in ('url', 'account', 'upload')),
+  source_type text not null check (source_type in ('url', 'account', 'upload', 'competitors')),
   source_url text,
   platform text check (platform in ('tiktok', 'youtube_shorts', 'facebook_reels')),
   viral_score numeric check (viral_score >= 0 and viral_score <= 100),

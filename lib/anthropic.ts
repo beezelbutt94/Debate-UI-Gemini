@@ -7,6 +7,7 @@ import type {
   Storyboard,
   ScriptScene,
   SuiteTool,
+  CompetitorGapAnalysis,
 } from '@/lib/types';
 
 let cached: Anthropic | null = null;
@@ -700,4 +701,88 @@ export async function generateToolRecommendations(digest: string): Promise<RawTo
 
   const input = toolUse.input as { recommendations: RawToolRecommendation[] };
   return input.recommendations;
+}
+
+const COMPETITOR_TOOL_NAME = 'submit_competitor_gap_analysis';
+
+const COMPETITOR_TOOL: Anthropic.Tool = {
+  name: COMPETITOR_TOOL_NAME,
+  description:
+    'Submit the structured Competitor Espionage & Gap Engine analysis: per-competitor summaries, ' +
+    'outlier topics, missing topics, audience sentiment gaps, and untapped keyword clusters.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      outlier_topics: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Top-performing content themes/formats the tracked competitors actually use.',
+      },
+      missing_topics: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "Topics competitors cover that this creator's own recent work does not.",
+      },
+      audience_sentiment_gaps: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Sentiment/complaint patterns visible in competitor content this creator could address better.',
+      },
+      untapped_keyword_clusters: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Grounded in the real search results provided, not invented.',
+      },
+    },
+    required: ['outlier_topics', 'missing_topics', 'audience_sentiment_gaps', 'untapped_keyword_clusters'],
+  },
+};
+
+const COMPETITOR_SYSTEM_PROMPT = `You are ViralEngine's Competitor Espionage & Gap Engine. You are given:
+1. Real per-competitor data snapshots (YouTube: official API stats; TikTok/Instagram: extracted public
+   profile page content) for 3-5 tracked competitors.
+2. Real current web search results for trending topics in this creator's niche.
+3. A digest of this creator's own recent reports/scripts, so you know what they've already covered.
+
+Identify genuine gaps: topics/formats competitors are winning with that this creator hasn't done,
+sentiment patterns in competitor audiences this creator could serve better, and keyword/topic
+clusters the search results surface that neither this creator nor (as far as the data shows) their
+competitors have saturated yet. Every claim must trace to something actually in the data provided --
+never invent a competitor behavior or a keyword trend that wasn't given to you.
+
+Call submit_competitor_gap_analysis exactly once.`;
+
+export async function generateCompetitorGapAnalysis(params: {
+  competitorDigest: string;
+  searchDigest: string;
+  ownWorkDigest: string;
+}): Promise<Omit<CompetitorGapAnalysis, 'competitors'>> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 3072,
+    system: COMPETITOR_SYSTEM_PROMPT,
+    tools: [COMPETITOR_TOOL],
+    tool_choice: { type: 'tool', name: COMPETITOR_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Competitor snapshots:\n${params.competitorDigest}\n\n` +
+          `Trending-topic search results:\n${params.searchDigest}\n\n` +
+          `This creator's own recent work:\n${params.ownWorkDigest || '(none yet)'}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === COMPETITOR_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected competitor gap analysis.');
+  }
+
+  return toolUse.input as Omit<CompetitorGapAnalysis, 'competitors'>;
 }

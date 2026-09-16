@@ -17,7 +17,8 @@ record if you're archaeology-minded.
 - Supabase (Postgres, RLS-enabled, Clerk wired in as a third-party auth
   provider)
 - Stripe (Creator/Pro/Studio subscription billing, quota-gated usage)
-- Tavily (`/extract`) for URL content extraction
+- Tavily (`/extract` and `/search`) for URL content extraction and
+  real-time topic/trend research
 - YouTube Data API v3 for real channel/upload stats
 - Cloudinary (signed direct-to-cloud video upload, frame + waveform
   extraction via delivery transformations)
@@ -27,7 +28,7 @@ record if you're archaeology-minded.
 
 ## What's built
 
-Five features, real end to end, not stubs:
+Six features, real end to end, not stubs:
 
 ### Viral Gap Analyzer
 
@@ -180,6 +181,34 @@ Five features, real end to end, not stubs:
    automation is intentionally not built or stubbed here; see
    `docs/VIRALENGINE_ROADMAP.md`.
 
+### Competitor Espionage & Gap Engine
+
+1. `app/dashboard/competitors/page.tsx` +
+   `components/CompetitorTrackerForm.tsx` — track 3-5 competitor handles
+   (YouTube/TikTok/Instagram) plus an optional niche, get outlier topics,
+   topics missing from your own work, audience sentiment gaps, and
+   untapped keyword clusters.
+2. `app/api/competitors/track/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other real-analysis
+     features (unlike the Tool Suite Hub, this one does analyze new
+     external content, so it's quota-gated like the first three).
+   - Reuses `fetchYoutubeChannelSnapshot` (real YouTube Data API v3) and
+     `extractUrlContent` (Tavily) exactly as Deep-Dive does, including the
+     same per-competitor graceful-failure handling — one bad handle among
+     five doesn't sink the whole report.
+   - **New**: `lib/tavily.ts`'s `searchTopics()`, a real Tavily `/search`
+     call (distinct from `/extract`) grounding "untapped keyword
+     clusters" in actual current search results, not invented trends.
+   - Pulls this creator's own recent reports/scripts (via the same
+     `lib/digest.ts` digest builders the Tool Suite Hub uses — extracted
+     into a shared module rather than duplicated a third time) so Claude
+     (`generateCompetitorGapAnalysis`) can identify what competitors
+     cover that this creator's own work doesn't, not just describe the
+     competitors in isolation.
+   - Persists the tracked handle list into `creators_profiles.connected_metrics`
+     and writes to `audit_reports` (`source_type: 'competitors'` — added
+     to that column's check constraint via migration).
+
 ### Shared platform pieces
 
 - Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
@@ -203,11 +232,10 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Competitor Espionage Engine and the Scheduling/Publishing Planner. See
-**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
-(already created, see below) and API routes each one needs, and which
-already-verified API contracts (Metricool, Semrush, Ahrefs) to build
-against.
+The Algorithmic Scheduling & Publishing Planner — the last of the 7. See
+**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema table
+(already created, see below) and API route it needs, and the
+already-verified Metricool API contract to build it against.
 
 ## Local setup
 
@@ -244,9 +272,10 @@ once step 4 above is done):
 - `users` — Clerk user id (as `id`, text, not uuid) + Stripe customer id.
 - `creators_profiles` — niche, per-platform handles, cached connected
   metrics, Mem0 agent key.
-- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive, and
-  Upload Diagnostic), JSONB payload + viral score + timestamped
-  recommendations.
+- `audit_reports` — every analysis result (Gap Analyzer, Deep-Dive,
+  Upload Diagnostic, Competitor Espionage), JSONB payload + viral score +
+  timestamped recommendations. `source_type` grew a fourth value
+  (`competitors`) beyond the original three via migration.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.
 - `subscriptions` — Stripe plan tier + atomic quota usage counters.

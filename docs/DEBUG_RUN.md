@@ -13,11 +13,11 @@
 Findings from actually building and running the ViralEngine rebuild
 (Viral Gap Analyzer, Creator Account Deep-Dive, Multimodal Video Upload
 Diagnostic, Algorithmic Script & Storyboard Generator, Creator Tool Suite
-Hub): real `npm run typecheck`, `npm run build`, `npm run lint`, and
-repeated live `next dev` smoke tests against every route added, plus real
-infrastructure checks via the Supabase and Stripe MCP connectors
-(`get_advisors`, `information_schema` queries against the live
-`unseen-reels` project).
+Hub, Competitor Espionage & Gap Engine): real `npm run typecheck`,
+`npm run build`, `npm run lint`, and repeated live `next dev` smoke tests
+against every route added, plus real infrastructure checks via the
+Supabase and Stripe MCP connectors (`get_advisors`, `information_schema`,
+`pg_constraint` queries against the live `unseen-reels` project).
 
 | Finding | Evidence | Fix |
 |---|---|---|
@@ -38,21 +38,23 @@ infrastructure checks via the Supabase and Stripe MCP connectors
 | A creator's very first script (or any request during a real Mem0 outage) has no prior-voice memory to retrieve — without an explicit signal, the LLM could plausibly claim to be "staying consistent with your established style" when nothing was actually retrieved. | Read through `generateScript()`'s prompt construction before shipping, not a live incident. | `lib/anthropic.ts`'s system prompt branches on `hasMemory` and explicitly forbids claiming consistency with a style that wasn't actually provided when no memories were found. `Storyboard.memory_context_used` carries the same signal into the UI. |
 | A tool-recommendation LLM response could plausibly emit or invent a URL for one of the four linked tools — rendered directly as a clickable link, that's both a hallucination risk (a dead/wrong URL) and an injection risk (a crafted response steering a user elsewhere). | Design review before writing `app/api/tools/recommendations/route.ts`, not a live incident. | The tool-use schema constrains `tool` to a 4-value enum; `lib/tool-suite.ts`'s fixed `TOOL_INFO` map resolves the real URL server-side, never trusting anything URL-shaped from the model's own output. |
 | `components/ToolSuiteHub.tsx`'s fetch-on-mount `useEffect` hit the same `react-hooks/set-state-in-effect` lint rule already flagging the pre-existing, untouched `app/dashboard/settings/domain/page.tsx` — restructuring to defer all `setState` calls until after the first `await` (the textbook fix) didn't satisfy it either; the rule flags any effect that transitively reaches a `setState` call at all, sync or not. | `npm run lint`: same rule, same message, new file. | Deliberate, commented `eslint-disable-next-line react-hooks/set-state-in-effect` on the one line that calls the fetch function — migrating to a Suspense/loader-based data-fetching setup to satisfy the rule "properly" is a real architectural change out of scope for one component, and would leave this repo with two different data-fetching patterns for no functional gain. |
+| Semrush/Ahrefs's real, verified self-serve APIs are domain/website-centric, not handle-based — they don't actually solve "track 3-5 competitor handles" the way the original roadmap entry for this feature assumed before it was built. | Re-checked both vendors' actual tool surfaces against the feature's real input (a TikTok/Instagram handle, not a domain) before writing any integration code. | Reused Deep-Dive's already-real data sources (YouTube Data API v3, Tavily extraction) instead of committing to a fetch() call against an endpoint that doesn't take the input this feature actually has. `docs/VIRALENGINE_ROADMAP.md` corrected in place rather than left describing a plan that was never actually followed. |
+| The Tool Suite Hub's inline `digestReport()` had no branch for `source_type: 'competitors'` — harmless while that value didn't exist yet, but would have mis-cast a `CompetitorGapAnalysis` payload as `UploadDiagnosis` (its `if`/`if`/fallback-`else` structure) the moment this feature started writing rows with the new source_type. | Caught while extracting the function into shared `lib/digest.ts` for reuse, not a live incident -- the new source_type didn't exist until this same feature's migration. | Added the fourth branch as part of the extraction, so both callers (Tool Suite Hub, Competitor Espionage) get the fix from the same shared function rather than needing it fixed twice. |
 
 Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
-`npm run build` (all 23 routes compile), `npm run lint` (clean except the
-2 pre-existing ViralVision findings — plus two real findings in this
-session's own new code, an unescaped apostrophe and the `useEffect` lint
-rule above, both caught and resolved the same run each was introduced),
-and live `next dev` passes — `GET /` -> 200,
-`GET /dashboard/{analyze,deep-dive,upload,script,tools}` unauthenticated
--> 307 to `/sign-in`, `POST/GET /api/{analyze/url,creators/deep-dive,
-uploads/sign,analyze/upload,generate/script,tools/recommendations}`
-unauthenticated -> 401 JSON, `GET /sign-in` -> 200. One test run without
-`.env.local` present caught a real gap in test discipline, not the app:
-`/dashboard/tools` returned 200 instead of 307 because Clerk had no
-configured key in that run, not because auth was actually broken —
-re-verified with the env file in place before trusting the result.
+`npm run build` (all 25 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings — plus three real findings in this
+session's own new code across features 4-6, all caught and resolved the
+same run each was introduced), and live `next dev` passes — `GET /` ->
+200, `GET /dashboard/{analyze,deep-dive,upload,script,tools,competitors}`
+unauthenticated -> 307 to `/sign-in`, `POST/GET
+/api/{analyze/url,creators/deep-dive,uploads/sign,analyze/upload,
+generate/script,tools/recommendations,competitors/track}` unauthenticated
+-> 401 JSON, `GET /sign-in` -> 200. One test run without `.env.local`
+present caught a real gap in test discipline, not the app: `/dashboard/tools`
+returned 200 instead of 307 because Clerk had no configured key in that
+run, not because auth was actually broken — re-verified with the env
+file in place before trusting the result.
 
 ---
 

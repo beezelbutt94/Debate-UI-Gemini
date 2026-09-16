@@ -17,7 +17,7 @@ whole spec's schema up front, not just the one shipped feature.
 | 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
 | 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
 | 5 | Creator Tool Suite Hub | **Shipped** — see README.md |
-| 6 | Competitor Espionage & Gap Engine | Not started |
+| 6 | Competitor Espionage & Gap Engine | **Shipped** — see README.md |
 | 7 | Algorithmic Scheduling & Publishing Planner | Not started |
 
 ## 2. Creator Account Deep-Dive — shipped
@@ -157,23 +157,40 @@ quota-gated — it synthesizes over analyses the user already paid a quota
 unit for, rather than analyzing new external content, so gating it again
 would double-charge for the same underlying work.
 
-## 6. Competitor Espionage & Gap Engine
+## 6. Competitor Espionage & Gap Engine — shipped
 
-- **Route**: `app/api/competitors/track/route.ts` (new).
-- **Tables**: `creators_profiles.connected_metrics` (cache competitor
-  snapshots), new `audit_reports` rows or a dedicated table if the
-  4-competitor comparison payload outgrows a single JSONB column —
-  decide once real Semrush/Ahrefs payload sizes are known.
-- **Real API contracts**: Semrush MCP (`competitors_research`,
-  `organic_research`, `audience_research`) and Ahrefs MCP
-  (`site-explorer-organic-competitors`,
-  `social-media-channels`/`social-media-post-metrics`) are both live,
-  verified, self-serve APIs (unlike vidIQ/Metricool above, these two
-  vendors do sell direct API-key access, so a real fetch()-based
-  integration in the deployed app is plausible — confirm the specific
-  endpoint/pricing tier before committing to it). Tavily's `tavily_search`
-  covers the "untapped keyword clusters" / sentiment-gap research angle
-  using the same real, already-integrated API as `lib/tavily.ts`.
+Went a different direction than this section originally proposed.
+Semrush and Ahrefs's real, verified self-serve APIs are both
+domain/website-centric (`competitors_research`, `organic_research`,
+`site-explorer-organic-competitors`, ...) — genuinely real APIs, just not
+ones that take a TikTok or Instagram *handle* as input, which is what
+"track 3-5 competitor handles" actually requires. Rather than force a fit
+or commit to an unverified endpoint, this reused the exact same real data
+sources Deep-Dive already established for the same problem: YouTube Data
+API v3 (`fetchYoutubeChannelSnapshot`) for YouTube competitors, Tavily
+extraction for TikTok/Instagram. Semrush/Ahrefs stay a real option for a
+*future* website-centric competitor angle, not for handle-based social
+tracking — worth remembering if a later feature needs it.
+
+New in this feature: `lib/tavily.ts`'s `searchTopics()`, wrapping the
+real Tavily `/search` endpoint (verified live, distinct from `/extract`)
+to ground "untapped keyword clusters" in actual current search results.
+
+Also extracted `lib/digest.ts` (`digestReport`/`digestScript`) out of the
+Tool Suite Hub route, since this feature needed the exact same
+"summarize a creator's own past reports/scripts into plain text" logic
+to compare against competitors — one shared implementation instead of a
+second copy, and it also fixed a latent bug: the Tool Suite Hub's inline
+version had no branch for `source_type: 'competitors'` and would have
+mis-cast that shape once this feature started writing rows, caught while
+refactoring rather than at runtime.
+
+`audit_reports.source_type`'s check constraint gained a fourth value,
+`'competitors'`, via a live `alter table` against the `unseen-reels`
+project (verified after with a `pg_constraint` query) and folded
+directly into `supabase/migrations/0001_viralengine_init.sql`'s `create
+table` statement as the source of truth for a fresh install, matching
+how every other schema change this session has been handled.
 
 ## 7. Algorithmic Scheduling & Publishing Planner
 

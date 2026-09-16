@@ -1,4 +1,5 @@
 const TAVILY_EXTRACT_URL = 'https://api.tavily.com/extract';
+const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
 
 export interface TavilyExtractResult {
   url: string;
@@ -74,4 +75,64 @@ export async function extractUrlContent(url: string): Promise<TavilyExtractResul
   }
 
   return data.results[0];
+}
+
+export interface TavilySearchResult {
+  url: string;
+  title: string;
+  content: string;
+  score: number;
+}
+
+export interface TavilySearchResponse {
+  results: TavilySearchResult[];
+}
+
+/**
+ * Real Tavily /search (https://api.tavily.com/search) — distinct from
+ * /extract above (that reads one known URL; this searches the open web).
+ * Response shape confirmed live: {results: [{url, title, content,
+ * score}], ...}. Powers the Competitor Espionage Engine's "untapped
+ * keyword clusters" / "missing topics" research -- real current search
+ * results, not a guess at what's trending.
+ */
+export async function searchTopics(query: string, maxResults = 8): Promise<TavilySearchResult[]> {
+  if (!process.env.TAVILY_API_KEY) {
+    throw new Error('TAVILY_API_KEY is not configured.');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+
+  let res: Response;
+  try {
+    res = await fetch(TAVILY_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: 'basic',
+        max_results: maxResults,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (res.status === 429) {
+    const retryAfter = res.headers.get('retry-after');
+    throw new TavilyRateLimitError(retryAfter ? Number(retryAfter) : null);
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Tavily search failed (${res.status}): ${body.slice(0, 500)}`);
+  }
+
+  const data = (await res.json()) as TavilySearchResponse;
+  return data.results;
 }

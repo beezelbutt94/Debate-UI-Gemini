@@ -72,11 +72,11 @@ export interface UploadDiagnosis {
   frames_analyzed: number;
 }
 
-export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis> {
+export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis | CompetitorGapAnalysis> {
   id: string;
   user_id: string;
   creator_profile_id: string | null;
-  source_type: 'url' | 'account' | 'upload';
+  source_type: 'url' | 'account' | 'upload' | 'competitors';
   source_url: string | null;
   platform: Platform | null;
   viral_score: number | null;
@@ -90,6 +90,11 @@ export interface CreatorHandles {
   tiktok?: string;
   instagram?: string;
 }
+
+// The account-handle family (youtube/tiktok/instagram) is distinct from
+// `Platform` above, which names short-form *content* types
+// (tiktok/youtube_shorts/facebook_reels) for a single video/report.
+export type AccountPlatform = keyof CreatorHandles;
 
 export interface CreatorProfileRow {
   id: string;
@@ -138,4 +143,24 @@ export interface ScriptRow {
   tone_parameters: Record<string, unknown>;
   target_platform: Platform | null;
   created_at: string;
+}
+
+export interface CompetitorHandle {
+  platform: AccountPlatform;
+  handle: string;
+}
+
+export interface CompetitorSnapshot {
+  handle: string;
+  platform: AccountPlatform;
+  summary: string; // what was actually found for this competitor
+  fetch_error: string | null; // non-null if this one competitor's fetch failed
+}
+
+export interface CompetitorGapAnalysis {
+  competitors: CompetitorSnapshot[];
+  outlier_topics: string[]; // top-performing themes competitors use
+  missing_topics: string[]; // topics competitors cover that this creator doesn't
+  audience_sentiment_gaps: string[];
+  untapped_keyword_clusters: string[]; // grounded in real Tavily search results
 }

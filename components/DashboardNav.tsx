@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/upload', label: 'Upload Diagnostic' },
   { href: '/dashboard/script', label: 'Script Generator' },
   { href: '/dashboard/tools', label: 'Tool Suite Hub' },
+  { href: '/dashboard/competitors', label: 'Competitor Espionage' },
 ];
 
 /**
