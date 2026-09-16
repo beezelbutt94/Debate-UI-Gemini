@@ -16,7 +16,7 @@ whole spec's schema up front, not just the one shipped feature.
 | 2 | Creator Account Deep-Dive | **Shipped** — see README.md |
 | 3 | Multimodal Video Upload Diagnostic | **Shipped** — see README.md |
 | 4 | Algorithmic Script & Storyboard Generator | **Shipped** — see README.md |
-| 5 | Creator Tool Suite Hub | Not started |
+| 5 | Creator Tool Suite Hub | **Shipped** — see README.md |
 | 6 | Competitor Espionage & Gap Engine | Not started |
 | 7 | Algorithmic Scheduling & Publishing Planner | Not started |
 
@@ -124,21 +124,38 @@ tool-use-for-structured-output approach in `lib/anthropic.ts`
 (`generateScript`/`Storyboard`, matching the spec's per-scene shape:
 Visual Action, Spoken Hook <3s, Audio/SFX Cue, Retention Loop, CTA).
 
-## 5. Creator Tool Suite Hub
+## 5. Creator Tool Suite Hub — shipped
 
-- No new table — this is a recommendation/deep-link layer over the other
-  features' outputs, not its own data model.
-- **Real, verified MCP connectors in this workspace**: Descript
-  (`import_media`, `prompt_project_agent`, `publish_project`), OpusClip
-  (`opusclip_create_upload_link`, `opusclip_analyze_video`,
-  `opusclip_submit_project`), HyperFrames by HeyGen (`compose`,
-  `render_video` — noted as disabled from CLI/IDE agents per that
-  connector's own instructions; a hosted-chat-only path), Canva
-  (`generate-design`, `create-design-from-brand-template`). All four have
-  real tool schemas already loaded in this session — inspect them again
-  (`ToolSearch`) before wiring the actual deep-link URLs, since each
-  needs its own OAuth/account-linking flow the deployed app doesn't have
-  yet.
+Built as what the spec actually called it — a "contextual recommendation
+module," not a workflow-automation engine. Investigating Descript,
+OpusClip, HyperFrames, and Canva first confirmed the constraint this
+roadmap already flagged for feature 5 before it shipped: each needs its
+own per-user OAuth/account-linking flow to actually *drive* on a user's
+behalf (submit a clip to OpusClip, trigger Descript's Studio Sound,
+render a HyperFrames composition, generate a Canva design against a
+connected account) — the same category of gap ViralSync's own TikTok/
+Google Ads OAuth flow already documented honestly, one product ago.
+Building four such flows is a real, large, separate undertaking (each is
+its own OAuth app registration, consent screen, and token-storage
+problem, mirroring the effort `lib/oauth/` used to represent in this repo
+before the ViralEngine pivot) — deliberately not attempted or stubbed
+here.
+
+What *is* real: `app/api/tools/recommendations/route.ts` pulls a
+creator's actual recent `audit_reports`/`scripts`, digests their real
+weak points per report type, and has Claude route each one to whichever
+of the four tools actually addresses it, with reasoning that must cite
+the specific finding — never a generic pitch. The one design choice worth
+reusing forward: the model's structured output constrains `tool` to a
+4-value enum, and the real deep-link URL is resolved server-side from
+`lib/tool-suite.ts`, never trusted from the LLM's own output — the same
+"don't let the model emit something that renders as a live link/action"
+caution as the `publicId`-ownership check in feature 3.
+
+This route is also the first of the five shipped features that isn't
+quota-gated — it synthesizes over analyses the user already paid a quota
+unit for, rather than analyzing new external content, so gating it again
+would double-charge for the same underlying work.
 
 ## 6. Competitor Espionage & Gap Engine
 

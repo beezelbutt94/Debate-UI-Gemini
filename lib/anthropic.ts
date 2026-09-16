@@ -6,6 +6,7 @@ import type {
   UploadDiagnosis,
   Storyboard,
   ScriptScene,
+  SuiteTool,
 } from '@/lib/types';
 
 let cached: Anthropic | null = null;
@@ -607,4 +608,96 @@ export async function generateScript(params: {
       memory_context_used: hasMemory,
     },
   };
+}
+
+const RECOMMENDATIONS_TOOL_NAME = 'submit_tool_recommendations';
+
+const RECOMMENDATIONS_TOOL: Anthropic.Tool = {
+  name: RECOMMENDATIONS_TOOL_NAME,
+  description:
+    'Submit 1-4 contextual tool recommendations grounded in specific findings from the ' +
+    "creator's own recent reports/scripts -- never a generic pitch for a tool.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      recommendations: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 4,
+        items: {
+          type: 'object',
+          properties: {
+            tool: {
+              type: 'string',
+              enum: ['descript', 'opusclip', 'hyperframes', 'canva'],
+              description:
+                'descript=audio/transcript repair, opusclip=short-form clip slicing, ' +
+                'hyperframes=AI avatar B-roll, canva=thumbnail templates.',
+            },
+            reason: {
+              type: 'string',
+              description: 'Must cite the specific finding (score, note, or issue) from the digest that justifies this.',
+            },
+            action: { type: 'string', description: 'The concrete next step once there.' },
+            source: {
+              type: 'string',
+              description: 'Which item in the digest this is grounded in, quoted or closely paraphrased.',
+            },
+          },
+          required: ['tool', 'reason', 'action', 'source'],
+        },
+      },
+    },
+    required: ['recommendations'],
+  },
+};
+
+const RECOMMENDATIONS_SYSTEM_PROMPT = `You are ViralEngine's Creator Tool Suite Hub. You are given a
+digest of a creator's own recent Viral Gap Analyzer / Account Deep-Dive / Upload Diagnostic reports
+and generated scripts -- their actual weak points, already identified elsewhere in the product.
+
+Your only job is to route each real weak point to whichever ONE of these four tools actually
+addresses it, and say why in terms of that specific finding:
+- descript: audio/voice problems (weak audio_balance, mentions of unclear speech).
+- opusclip: needs more/better short-form clips from existing longer footage.
+- hyperframes: needs B-roll or avatar-driven footage it doesn't have.
+- canva: weak/missing thumbnail, or a finding about visual hook clarity tied to a static image, not video content.
+
+Never recommend a tool for a problem it doesn't solve, and never invent a finding that isn't in the
+digest -- every recommendation's "source" must trace to something actually given to you. If the
+digest has nothing that maps cleanly to one of these four tools, recommend fewer tools rather than
+forcing a stretch.
+
+Call submit_tool_recommendations exactly once.`;
+
+export interface RawToolRecommendation {
+  tool: SuiteTool;
+  reason: string;
+  action: string;
+  source: string;
+}
+
+export async function generateToolRecommendations(digest: string): Promise<RawToolRecommendation[]> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 2048,
+    system: RECOMMENDATIONS_SYSTEM_PROMPT,
+    tools: [RECOMMENDATIONS_TOOL],
+    tool_choice: { type: 'tool', name: RECOMMENDATIONS_TOOL_NAME },
+    messages: [{ role: 'user', content: `Digest of recent reports/scripts:\n${digest.slice(0, 12_000)}` }],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock =>
+      block.type === 'tool_use' && block.name === RECOMMENDATIONS_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected recommendations.');
+  }
+
+  const input = toolUse.input as { recommendations: RawToolRecommendation[] };
+  return input.recommendations;
 }

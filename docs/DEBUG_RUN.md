@@ -12,11 +12,12 @@
 
 Findings from actually building and running the ViralEngine rebuild
 (Viral Gap Analyzer, Creator Account Deep-Dive, Multimodal Video Upload
-Diagnostic, Algorithmic Script & Storyboard Generator): real
-`npm run typecheck`, `npm run build`, `npm run lint`, and repeated live
-`next dev` smoke tests against every route added, plus real infrastructure
-checks via the Supabase and Stripe MCP connectors (`get_advisors`,
-`information_schema` queries against the live `unseen-reels` project).
+Diagnostic, Algorithmic Script & Storyboard Generator, Creator Tool Suite
+Hub): real `npm run typecheck`, `npm run build`, `npm run lint`, and
+repeated live `next dev` smoke tests against every route added, plus real
+infrastructure checks via the Supabase and Stripe MCP connectors
+(`get_advisors`, `information_schema` queries against the live
+`unseen-reels` project).
 
 | Finding | Evidence | Fix |
 |---|---|---|
@@ -35,16 +36,23 @@ checks via the Supabase and Stripe MCP connectors (`get_advisors`,
 | `mem0ai`'s `SearchMemoryOptions` type doesn't have a `userId` field the way `AddMemoryOptions` does (`add()` and `search()` scope users differently) — a plausible guess that matched `add()`'s shape didn't compile for `search()`. | `tsc --noEmit`: `Object literal may only specify known properties, and 'userId' does not exist in type 'SearchMemoryOptions'`. | Read the shipped `node_modules/mem0ai/dist/index.d.ts` directly instead of guessing twice: `search()` scopes by `filters: {AND: [{user_id: ...}]}`, matching the pattern already documented in the Mem0 MCP connector's own tool descriptions. Fixed `lib/mem0.ts` accordingly. |
 | Mem0 install initially failed outright: `mem0ai@3.1.8` declares an optional peer dependency on `@anthropic-ai/sdk@^0.40.1`, which our already-bumped `^0.126.0` doesn't satisfy (0.x caret ranges are patch-only). | `npm install mem0ai`: `ERESOLVE ... peerOptional @anthropic-ai/sdk@"^0.40.1"`. | Installed with `--legacy-peer-deps` — safe here since the conflicting peer is optional and unused (we only call `mem0ai`'s plain `MemoryClient.add`/`search`, none of its Anthropic-specific helpers). |
 | A creator's very first script (or any request during a real Mem0 outage) has no prior-voice memory to retrieve — without an explicit signal, the LLM could plausibly claim to be "staying consistent with your established style" when nothing was actually retrieved. | Read through `generateScript()`'s prompt construction before shipping, not a live incident. | `lib/anthropic.ts`'s system prompt branches on `hasMemory` and explicitly forbids claiming consistency with a style that wasn't actually provided when no memories were found. `Storyboard.memory_context_used` carries the same signal into the UI. |
+| A tool-recommendation LLM response could plausibly emit or invent a URL for one of the four linked tools — rendered directly as a clickable link, that's both a hallucination risk (a dead/wrong URL) and an injection risk (a crafted response steering a user elsewhere). | Design review before writing `app/api/tools/recommendations/route.ts`, not a live incident. | The tool-use schema constrains `tool` to a 4-value enum; `lib/tool-suite.ts`'s fixed `TOOL_INFO` map resolves the real URL server-side, never trusting anything URL-shaped from the model's own output. |
+| `components/ToolSuiteHub.tsx`'s fetch-on-mount `useEffect` hit the same `react-hooks/set-state-in-effect` lint rule already flagging the pre-existing, untouched `app/dashboard/settings/domain/page.tsx` — restructuring to defer all `setState` calls until after the first `await` (the textbook fix) didn't satisfy it either; the rule flags any effect that transitively reaches a `setState` call at all, sync or not. | `npm run lint`: same rule, same message, new file. | Deliberate, commented `eslint-disable-next-line react-hooks/set-state-in-effect` on the one line that calls the fetch function — migrating to a Suspense/loader-based data-fetching setup to satisfy the rule "properly" is a real architectural change out of scope for one component, and would leave this repo with two different data-fetching patterns for no functional gain. |
 
 Confirmed working end-to-end after fixes: `npm run typecheck` (clean),
-`npm run build` (all 21 routes compile), `npm run lint` (clean except the
-2 pre-existing ViralVision findings above — plus one real finding in our
-own new code, an unescaped apostrophe in `ScriptGeneratorForm.tsx`,
-caught and fixed the same run), and live `next dev` passes — `GET /` ->
-200, `GET /dashboard/{analyze,deep-dive,upload,script}` unauthenticated
--> 307 to `/sign-in`, `POST /api/{analyze/url,creators/deep-dive,
-uploads/sign,analyze/upload,generate/script}` unauthenticated -> 401
-JSON, `GET /sign-in` -> 200.
+`npm run build` (all 23 routes compile), `npm run lint` (clean except the
+2 pre-existing ViralVision findings — plus two real findings in this
+session's own new code, an unescaped apostrophe and the `useEffect` lint
+rule above, both caught and resolved the same run each was introduced),
+and live `next dev` passes — `GET /` -> 200,
+`GET /dashboard/{analyze,deep-dive,upload,script,tools}` unauthenticated
+-> 307 to `/sign-in`, `POST/GET /api/{analyze/url,creators/deep-dive,
+uploads/sign,analyze/upload,generate/script,tools/recommendations}`
+unauthenticated -> 401 JSON, `GET /sign-in` -> 200. One test run without
+`.env.local` present caught a real gap in test discipline, not the app:
+`/dashboard/tools` returned 200 instead of 307 because Clerk had no
+configured key in that run, not because auth was actually broken —
+re-verified with the env file in place before trusting the result.
 
 ---
 

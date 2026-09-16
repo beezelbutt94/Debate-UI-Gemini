@@ -117,6 +117,17 @@ export interface Storyboard {
   memory_context_used: boolean; // whether prior Mem0 creator-voice memories informed this script
 }
 
+export type SuiteTool = 'descript' | 'opusclip' | 'hyperframes' | 'canva';
+
+export interface ToolRecommendation {
+  tool: SuiteTool;
+  label: string;
+  url: string;
+  reason: string; // grounded in a specific real finding, not generic advice
+  action: string; // what to actually do once there
+  source: string; // which past report/script this is grounded in, e.g. "Upload Diagnostic, Sep 12"
+}
+
 export interface ScriptRow {
   id: string;
   user_id: string;

@@ -27,7 +27,7 @@ record if you're archaeology-minded.
 
 ## What's built
 
-Four features, real end to end, not stubs:
+Five features, real end to end, not stubs:
 
 ### Viral Gap Analyzer
 
@@ -143,6 +143,43 @@ Four features, real end to end, not stubs:
      `docs/DEBUG_RUN.md`'s "failures that were hidden rather than fixed").
    - Writes to `scripts` and refunds the quota unit on any failure.
 
+### Creator Tool Suite Hub
+
+1. `app/dashboard/tools/page.tsx` + `components/ToolSuiteHub.tsx` — no
+   input needed; on load it fetches contextual recommendations for
+   Descript, OpusClip, HyperFrames by HeyGen, and Canva, each with a real
+   deep link and a reason grounded in one of your own recent reports.
+2. `app/api/tools/recommendations/route.ts`:
+   - Pulls your 5 most recent `audit_reports` and 3 most recent `scripts`,
+     builds a plain-text digest of their actual weak points per report
+     type (`digestReport`/`digestScript`), and sends that to Claude
+     (`lib/anthropic.ts`, `generateToolRecommendations`) with a system
+     prompt that forbids recommending a tool for a problem it doesn't
+     solve and forbids citing a finding that wasn't actually in the
+     digest.
+   - **The LLM never controls the URL.** Its tool-use schema constrains
+     `tool` to a 4-value enum; the actual deep link is looked up
+     server-side from `lib/tool-suite.ts`'s fixed `TOOL_INFO` map. This
+     is deliberate: letting a model emit an arbitrary URL that then
+     renders as a clickable link is both a hallucination risk (a
+     plausible but wrong or dead URL) and an injection risk.
+   - A brand-new user with no reports yet gets a small set of honest
+     starter recommendations instead of a wasted LLM call synthesizing
+     advice from nothing.
+   - **Not quota-gated**, unlike the other four features — this route
+     doesn't analyze new external content, it's a free synthesis layer
+     over analyses the user already paid a quota unit to generate. A
+     deliberate scoping choice, documented in the route itself and in
+     `docs/VIRALENGINE_ROADMAP.md`, not an oversight.
+3. What's real vs. what isn't: recommendations and deep links are fully
+   real. Actually *driving* Descript/OpusClip/HyperFrames/Canva on the
+   user's behalf (e.g., auto-submitting a clip to OpusClip) would need a
+   real per-user OAuth connection to each of those four services — the
+   same category of constraint ViralSync's own TikTok/Google Ads OAuth
+   flow already documented honestly for this repo, one product ago. That
+   automation is intentionally not built or stubbed here; see
+   `docs/VIRALENGINE_ROADMAP.md`.
+
 ### Shared platform pieces
 
 - Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
@@ -166,11 +203,11 @@ removed) that don't match most training data.
 
 ## What's not built yet
 
-Creator Tool Suite Hub, Competitor Espionage Engine, and the
-Scheduling/Publishing Planner. See **`docs/VIRALENGINE_ROADMAP.md`** — it
-names the exact schema tables (already created, see below) and API routes
-each one needs, and which already-verified API contracts (Metricool,
-OpusClip, Descript, HyperFrames, Canva, Semrush, Ahrefs) to build against.
+Competitor Espionage Engine and the Scheduling/Publishing Planner. See
+**`docs/VIRALENGINE_ROADMAP.md`** — it names the exact schema tables
+(already created, see below) and API routes each one needs, and which
+already-verified API contracts (Metricool, Semrush, Ahrefs) to build
+against.
 
 ## Local setup
 
