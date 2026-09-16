@@ -93,6 +93,9 @@ export default function WorkspaceDomainSettingsPage() {
   }, []);
 
   useEffect(() => {
+    // fetchDomainStatus is async — all setState calls inside it run after
+    // `await`, so they are not synchronous effect-body state updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDomainStatus();
   }, [fetchDomainStatus]);
 

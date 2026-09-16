@@ -1,10 +1,12 @@
 # CircleCI configuration for Next.js (viralengine)
+# CircleCI configuration for the ViralEngine Next.js application.
+# See: https://circleci.com/docs/reference/configuration-reference/
 version: 2.1
 
 jobs:
   build-and-test:
     docker:
-      - image: cimg/node:22.11
+      - image: cimg/node:22.19
     steps:
       - checkout
 
@@ -32,12 +34,16 @@ jobs:
 
       - run:
           name: Build
-          command: npm run build
+          # Dummy build-time env vars so Next.js/Clerk don't abort the build.
+          # These are never used at runtime in CI — they only satisfy static
+          # key-presence checks during `next build`.
           environment:
-            # Placeholder values so Next.js can compile without real secrets.
-            # Real values are injected from CircleCI project env vars in deployments.
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder
-            CLERK_SECRET_KEY: sk_test_placeholder
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder00000000000000000000000000000
+            NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+            NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+            NEXT_PUBLIC_APP_URL: http://localhost:3000
+            NEXT_PUBLIC_ROOT_DOMAIN: localhost
+          command: npm run build
 
 workflows:
   sample:
