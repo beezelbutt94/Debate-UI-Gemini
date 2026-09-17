@@ -151,6 +151,30 @@ const isPublicRoute = createRouteMatcher([
 // Everything else under /dashboard or /api requires a signed-in user.
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/api/(.*)']);
 
+// @clerk/nextjs runs a "keyless" path in development (canUseKeyless is
+// isDevelopmentEnvironment()-gated). In that path, when no publishable key is
+// present in the environment AND the request carries no keyless cookie,
+// clerkMiddleware returns NextResponse.next() *without ever calling the
+// handler below* -- see node_modules/@clerk/nextjs/dist/esm/server/
+// clerkMiddleware.js, the `isMissingPublishableKey` branch. The gate below is
+// then skipped entirely and /dashboard/* answers 200 to anonymous requests.
+//
+// A browser picks up the keyless cookie on its first visit so the gate works
+// there, which is exactly what makes this easy to miss: curl, fetch from a
+// script, and any first request without that cookie are ungated. Production is
+// unaffected (keyless is development-only), but "auth appears to work in the
+// browser while being off for everything else" is not a state to leave silent.
+// Fix it by putting real keys in .env.local (`clerk env pull`, or copy them
+// from the Clerk Dashboard) -- see .env.example.
+if (process.env.NODE_ENV !== 'production' && !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+  console.warn(
+    '[proxy] NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. @clerk/nextjs is in ' +
+      'keyless mode, and for any request without a keyless cookie it skips this ' +
+      "file's auth gate entirely -- /dashboard/* will answer 200 to anonymous " +
+      'requests. Set the key in .env.local before trusting local auth behaviour.'
+  );
+}
+
 export const proxy = clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req) && isProtectedRoute(req)) {
     const { userId, redirectToSignIn } = await auth();
@@ -175,5 +199,11 @@ export const config = {
   matcher: [
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     '/(api|trpc)(.*)',
+    // Not redundant with the first entry: that one deliberately skips anything
+    // ending in a static-asset extension, and Clerk's Frontend API proxy
+    // endpoints under /__clerk carry real extensions (.js), so they would be
+    // excluded and the handshake would fail. Verified: /__clerk/foo.js reaches
+    // proxy.ts with this entry and does not without it.
+    '/__clerk/(.*)',
   ],
 };

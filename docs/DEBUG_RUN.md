@@ -54,11 +54,11 @@ on the identical case hit while shipping the Tool Suite Hub), and live
 `next dev` passes covering every route across all 7 features -- unauthenticated
 page routes redirect (307) to `/sign-in`, unauthenticated API routes
 return 401 JSON. One test run without `.env.local` present, several
-features back, caught a real gap in test discipline, not the app:
-`/dashboard/tools` returned 200 instead of 307 because Clerk had no
-configured key in that run, not because auth was actually broken --
-re-verified with the env file in place before trusting the result, and
-every smoke test since has kept `.env.local` present from the start.
+features back, produced `/dashboard/tools` -> 200 instead of 307 and was
+written off here as a gap in test discipline. That was only half right.
+It was re-root-caused later (see "Clerk keyless mode silently skips the
+proxy handler" below): the 200 is real behaviour, not a bad test, and it
+is worth understanding rather than working around with a checklist.
 
 All 7 features of the original spec are now shipped. The throughline
 worth remembering across all of them: every "real API" claim in this
@@ -378,3 +378,111 @@ holding port 3000 with `INTERNAL_API_URL` set, which made the first
 browser run look like a regression (8/15). It wasn't — the pages were
 correctly reporting "configured but unreachable" against a stub that had
 been killed. Re-run on a clean server: 15/15.
+
+---
+
+## Clerk keyless mode silently skips the proxy handler
+
+Found while doing a full `clerk init` pass against app
+`app_3JRibQ43qQifgDfLS7n8X16Gxzh`. It explains the `/dashboard/*` -> 200
+result noted near the top of this document, which had been written off as
+a testing artifact.
+
+**Symptom.** With no `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in the
+environment, every `/dashboard/*` route answers **200** to an
+unauthenticated request instead of redirecting. The dev server still
+reports a `proxy.ts: 7ms` timing for those requests, which makes it look
+like the gate ran and allowed them.
+
+**How it was pinned down.** Instrumenting the handler proved it never
+runs: a `console.log` printed nothing, `x-dbg-*` response headers never
+appeared, and an unconditional `return new NextResponse('PROXY-RAN', {
+status: 418 })` at the top of the handler still produced `200` HTML. The
+reported `proxy.ts` timing is `clerkMiddleware` itself, not our callback.
+
+**Root cause.** `node_modules/@clerk/nextjs/dist/esm/server/clerkMiddleware.js`,
+the `keylessMiddleware` branch:
+
+```js
+const isMissingPublishableKey = !(resolvedParams.publishableKey || PUBLISHABLE_KEY || keyless?.publishableKey);
+if (isMissingPublishableKey && !isMachineTokenByPrefix(authHeader)) {
+  const res = NextResponse.next();
+  setRequestHeadersOnNextResponse(res, request2, { [constants.Headers.AuthStatus]: "signed-out" });
+  return res;   // <- the user handler is never called
+}
+```
+
+`keyless?.publishableKey` comes from a **cookie**, not from
+`.clerk/.tmp/keyless.json` directly. A browser picks that cookie up on
+its first visit, so the gate works there — which is exactly why this is
+easy to miss. `curl`, server-to-server `fetch`, and any first request
+without the cookie are ungated.
+
+**Scope.** Development only: `canUseKeyless` is
+`isDevelopmentEnvironment()`-gated (`dist/esm/utils/feature-flags.js`), so
+a production build always reaches the handler. The `/api/*` routes were
+never exposed by this — each one re-checks `auth()` itself and returns its
+own 401, which is why `/api/schedule` answered 401 throughout. It was the
+page routes, and only the page routes, that were open.
+
+**Proven fix.** Running the same server with the keys set:
+
+| Run | `/dashboard/upload` | `location` |
+|---|---|---|
+| keyless, no `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `200` | — |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` set | `307` | `https://viable-ocelot-5012.accounts.dev/sign-in?...` |
+| ...plus `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` | `307` | `/sign-in?redirect_url=...` |
+
+Two things came out of that third row. The app ships its own
+`app/sign-in/[[...sign-in]]` and `app/sign-up/[[...sign-up]]` pages, but
+without `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `..._SIGN_UP_URL` set,
+`redirectToSignIn()` sends users to Clerk's hosted portal and those two
+routes are never reached. Both are now documented in `.env.example`.
+
+`proxy.ts` now logs a loud warning at module scope whenever it loads in a
+non-production environment without a publishable key, so this state
+announces itself instead of looking like working auth.
+
+## `/__clerk/(.*)` was missing from the matcher
+
+Clerk's current recommended matcher has a third entry this repo did not
+have. It is not redundant with the first: the first pattern deliberately
+excludes anything ending in a static-asset extension, and Clerk's Frontend
+API proxy endpoints under `/__clerk` carry real `.js` extensions.
+
+Verified against the running server, using the dev log's per-request
+`proxy.ts` timing as the signal for "did the proxy run":
+
+| Path | Before | After |
+|---|---|---|
+| `/__clerk/foo.js` | no `proxy.ts` timing — proxy skipped | `proxy.ts: 10ms` — proxy ran |
+| `/nonexistent-page.js` (control) | no `proxy.ts` timing | no `proxy.ts` timing |
+
+## `clerk init` could not be completed from this container
+
+`clerk` CLI 3.3.0 (npm `clerk`, repo `github.com/clerk/cli`) installed and
+working. `clerk init --app app_3JRibQ43qQifgDfLS7n8X16Gxzh` blocks on
+`clerk auth login`, which is browser-OAuth only with a **loopback**
+redirect (`http://127.0.0.1:<port>/callback`) that only resolves on the
+machine running the CLI. `clerk api` states the same requirement
+outright: `Not authenticated. Run 'clerk auth login' or set
+CLERK_PLATFORM_API_KEY`. No file in the repo was modified by the attempt.
+
+`clerk doctor` additionally reports the project is running on an
+**unclaimed accountless application**, instance
+`ins_3JRhrbHgUdtLXznzxzn1OETm9W8`, publishable key
+`pk_test_dmlhYmxlLW9jZWxvdC01MDEyLmNsZXJrLmFjY291bnRzLmRldiQ`
+(`viable-ocelot-5012.clerk.accounts.dev`), with the secret key coming from
+`.clerk/.tmp/keyless.json` — and that it must be claimed from the Clerk
+Dashboard, because `clerk auth login` only claims applications that
+`clerk init` itself created.
+
+To finish, on a machine with a browser:
+
+```
+npm i -g clerk
+clerk auth login
+clerk init --app app_3JRibQ43qQifgDfLS7n8X16Gxzh
+clerk env pull            # writes the real keys into .env.local
+clerk doctor
+```
