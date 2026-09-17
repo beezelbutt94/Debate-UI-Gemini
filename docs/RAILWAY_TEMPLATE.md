@@ -130,13 +130,37 @@ The template composer is a UI flow; it cannot be driven from here. Steps:
    `RAILWAY_DOCKERFILE_PATH` is required on both: Railway only auto-detects a
    file named exactly `Dockerfile`, and this repo has three.
 
+4. **Also set the Dockerfile path in the service's build settings**, not only
+   as a variable. Both, on both services.
+
+   This is not belt-and-braces for its own sake. Building the source project
+   for this template, the two services were created before the variable was
+   set, and Railway's first build fell straight through to Railpack: it found
+   `package.json`, decided the repo was a Node project, and tried to build
+   the Next.js app instead:
+
+   ```
+   Railpack 0.39.0
+     Detected Node ... Using npm package manager
+     install $ npm install
+     build   $ npm run build
+   Build Failed: failed to compute cache key:
+     "/k8s/overlays/production/patches": not found
+   ```
+
+   Both services recovered on the next deploy once the variable existed. But
+   note the failure mode: **a missing Dockerfile path does not fail, it
+   silently builds the wrong thing.** The service-level build setting closes
+   that gap, so there is no window where clearing one variable quietly turns
+   a Python API into a failed Next.js build.
+
    If you ever add a secret to the template, generate it rather than shipping
    one — `${{secret(32)}}` produces a fresh value per deploy.
 
-4. **Create Template**, then **Publish**. Unpublished templates earn nothing;
+5. **Create Template**, then **Publish**. Unpublished templates earn nothing;
    the marketplace listing is the eligibility requirement.
 
-5. Turn on Template Queue emails in
+6. Turn on Template Queue emails in
    [account notifications](https://railway.com/account/notifications). That
    queue is the entire difference between 15% and 25%.
 

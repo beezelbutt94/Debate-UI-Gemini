@@ -25,6 +25,11 @@ export default defineRailway((ctx) => {
     // repo ships Dockerfile.api / Dockerfile.worker / Dockerfile.web, so
     // each service has to name its own. RAILWAY_DOCKERFILE_PATH is read at
     // build time (https://docs.railway.com/builds/dockerfiles).
+    // Set on the service build settings too, not only here. A missing
+    // Dockerfile path does not fail the build -- Railpack finds package.json,
+    // decides the repo is a Node project, and builds the Next.js app instead.
+    // That is what happened on this stack's first deploy, before the variable
+    // existed. Two places to clear means no window where it regresses quietly.
     env: {
       RAILWAY_DOCKERFILE_PATH: "Dockerfile.api",
       DATABASE_URL: db.env.DATABASE_URL,
