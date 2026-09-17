@@ -16,4 +16,21 @@ COPY services/api/alembic ./alembic
 COPY services/api/alembic.ini ./alembic.ini
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Two things this start command does that the plain uvicorn line did not:
+#
+# 1. Binds $PORT. Railway injects PORT and routes its domain at it; a
+#    hardcoded 8000 means the health check never connects and the deploy
+#    is marked failed. Locally PORT is unset, so it falls back to 8000.
+# 2. Creates the schema before serving. There are no Alembic revisions in
+#    services/api/alembic/versions yet, so a fresh database has no tables
+#    and every route that touches one 500s. app/system_init.py runs
+#    Base.metadata.create_all (idempotent, safe on every boot) and exits 1
+#    if the database is unreachable or the schema can't be synced -- the
+#    container then fails to start, which is the loud failure we want,
+#    rather than serving 500s with the real cause buried in boot logs.
+#
+# Shell form on purpose: exec-form CMD does no variable expansion, so
+# ${PORT} would reach uvicorn as a literal string. `exec` keeps uvicorn as
+# PID 1 so it still receives SIGTERM on shutdown.
+CMD ["/bin/sh", "-c", "python -m app.system_init && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

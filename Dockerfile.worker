@@ -15,11 +15,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY services/api/requirements.txt ./requirements.txt
 COPY services/api/requirements-ml.txt ./requirements-ml.txt
 RUN pip install --no-cache-dir -r requirements.txt
-# The ML extras (torch/mediapipe/etc.) are large, GPU-pipeline-specific,
-# and the main reason this build is slow. Comment this out for a worker
-# that only ever does FFmpeg transcode/audio jobs, not
-# storyboarding/subtitles/crop/CLIP-matching/repurposing.
-RUN pip install --no-cache-dir -r requirements-ml.txt
+
+# The ML extras (torch/mediapipe/open_clip/faster-whisper) are several GB
+# and the main reason this build is slow. They are only needed for the
+# storyboarding/subtitles/crop/CLIP-matching/repurposing steps; a worker
+# doing FFmpeg transcode and audio jobs does not touch them.
+#
+# Defaulting this OFF matters for the Railway template: an image that
+# pulls CUDA-sized wheels can exceed the build timeout and burns the
+# deployer's build minutes before they have seen the thing work. Turn it
+# on with `--build-arg INSTALL_ML_EXTRAS=true`, or by setting
+# INSTALL_ML_EXTRAS=true on the Railway service.
+ARG INSTALL_ML_EXTRAS=false
+RUN if [ "$INSTALL_ML_EXTRAS" = "true" ]; then \
+      pip install --no-cache-dir -r requirements-ml.txt; \
+    else \
+      echo "Skipping ML extras (INSTALL_ML_EXTRAS=$INSTALL_ML_EXTRAS). The GPU pipeline steps will raise ImportError if invoked."; \
+    fi
 
 COPY services/api/app ./app
 

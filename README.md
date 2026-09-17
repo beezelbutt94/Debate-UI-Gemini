@@ -435,3 +435,16 @@ half (which belongs to this scaffold) stays disabled unless
 `MULTI_TENANT_ROUTING_ENABLED=true` is set. See
 **`docs/PLATFORM_ROADMAP.md`** for what's there, what it maps to, and
 what's explicitly not done yet.
+
+### Deploying that stack on Railway
+
+`services/api` (FastAPI + Celery + Postgres + Redis) is set up to deploy as
+a four-service Railway project. `.railway/railway.ts` describes it, and
+`Dockerfile.api` / `Dockerfile.worker` are Railway-ready — the API binds
+`$PORT`, bootstraps its schema before serving, and the worker's multi-GB ML
+extras are opt-in behind `INSTALL_ML_EXTRAS`.
+
+This is also the piece worth publishing to the Railway template
+marketplace, which pays a 15–25% kickback on the usage a published template
+generates. **`docs/RAILWAY_TEMPLATE.md`** has the composer settings, the
+variable wiring, and the actual arithmetic on what it pays.

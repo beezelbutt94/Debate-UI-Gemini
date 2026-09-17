@@ -1,0 +1,161 @@
+# Earning from a Railway template
+
+Railway pays a kickback on the usage your published template generates in
+other people's projects. This is how to turn `services/api` into that
+template, and what it realistically pays.
+
+## How the money actually works
+
+From Railway's [kickback docs](https://docs.railway.com/templates/kickbacks):
+
+- **15%** of the usage cost incurred by people who deploy your template.
+- **+10% (25% total)** for answering questions in your
+  [Template Queue](https://station.railway.com/my-template-queue). If nobody
+  ever asks a question, you get the full 25% anyway.
+- It is a share of **usage**, not of the $5/seat platform fee.
+- Minimum payout $0.01; minimum *cash* withdrawal $100, in $100–$10,000
+  increments.
+
+Railway bills usage at **$10 per GB-month of RAM**, **$20 per vCPU-month**,
+and **$0.05 per GB egress**, metered per minute.
+
+So for this four-service stack idling at roughly 1.5 GB RAM and 0.5 vCPU:
+
+| | |
+|---|---|
+| RAM | 1.5 GB × $10 = **$15/mo** |
+| CPU | 0.5 vCPU × $20 = **$10/mo** |
+| Usage per deployer | **≈ $25/mo** |
+| Your 25% | **≈ $6.25 per active deployer per month** |
+
+Which sets the honest expectation: **~16 people running it for a month gets
+you to the $100 cash-withdrawal floor.** One or two deployers is coffee
+money. This is an adoption game, not a code game — the template has to be
+something people actually want and keep running.
+
+### One setting to decide first
+
+Your Earnings page currently has **Direct Deposit to Railway Credits**
+switched **on**, which is why the page says cash withdrawals are
+unavailable. That is not a bug:
+
+- **Leave it on** → earnings become Railway Credits, which offset your own
+  bill. Useful while you are on trial and paying for your own services.
+- **Switch it off** → earnings accrue as cash in Available Balance, and you
+  can withdraw once you clear $100.
+
+Credits are the better deal while you are still paying Railway more than you
+earn. Flip it once that reverses.
+
+## What to publish
+
+Not the Next.js app. It needs Clerk, Supabase, Stripe and Cloudinary keys
+before it does anything, and a template that demands four external signups
+before first render does not get deployed twice.
+
+Publish the backend: **FastAPI + Celery + Postgres + Redis**. It is a
+genuinely common stack, Railway supplies the Postgres and Redis natively, and
+it needs no third-party account to boot. It also runs four services
+continuously, which is what generates the usage the kickback is a share of.
+
+## Repo changes that make this deployable
+
+Three things were wrong for Railway and are now fixed.
+
+**1. The API ignored `$PORT`.** `Dockerfile.api` had
+`CMD ["uvicorn", ..., "--port", "8000"]`. Railway injects `PORT` and routes
+its domain at it, so a hardcoded 8000 means the health check never connects
+and the deploy is marked failed. It is now shell-form so the variable
+actually expands — exec-form `CMD` does no expansion, and `${PORT}` would
+have reached uvicorn as a literal string:
+
+```dockerfile
+CMD ["/bin/sh", "-c", "python -m app.system_init && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+```
+
+**2. A fresh database had no tables.** `services/api/alembic/versions/`
+contains only a README — there are no revisions. Without a bootstrap, every
+route that touches a table 500s on a brand-new deploy. The start command now
+runs `app/system_init.py` first, which does `Base.metadata.create_all`
+(idempotent) and **exits 1** if the database is unreachable, so the container
+fails to start instead of serving 500s. Verified:
+
+```
+$ DATABASE_URL=postgresql://nobody@127.0.0.1:59999/nope python -m app.system_init
+[CRITICAL] Database initialization error: connection to server at "127.0.0.1", port 59999 failed
+$ echo $?
+1
+```
+
+**3. The worker image pulled several GB of ML wheels unconditionally.**
+`torch`, `mediapipe`, `open_clip_torch` and `faster-whisper` are only needed
+for the storyboard/subtitle/CLIP pipeline steps. On a template that is
+actively harmful: the build can exceed the timeout and burns the deployer's
+build minutes before they have seen anything work. It is now
+`ARG INSTALL_ML_EXTRAS=false`, opt-in.
+
+`.railway/railway.ts` describes the whole stack. Note it is **not** a
+`railway.json` — Railway's docs mark Config as Code deprecated with a hard
+cutoff of **2026-12-01**, and new services can no longer opt into it at all.
+
+## Publishing it
+
+The template composer is a UI flow; it cannot be driven from here. Steps:
+
+1. **railway.com/workspace/templates → New Template.**
+2. Add four services:
+
+   | Service | Source | Key settings |
+   |---|---|---|
+   | `postgres` | Railway Postgres | — |
+   | `redis` | Railway Redis | — |
+   | `api` | `https://github.com/beezelbutt94/Debate-UI-Gemini` | Public networking on, healthcheck `/healthz` |
+   | `worker` | same repo | No public networking, no healthcheck |
+
+3. Variables. Use reference variables, not literals — Railway's own docs call
+   this out as what separates a good template from a broken one:
+
+   ```
+   api      RAILWAY_DOCKERFILE_PATH = Dockerfile.api
+            DATABASE_URL            = ${{Postgres.DATABASE_URL}}
+            REDIS_URL               = ${{Redis.REDIS_URL}}
+            CORS_ALLOWED_ORIGINS    = <deployer fills in>
+
+   worker   RAILWAY_DOCKERFILE_PATH = Dockerfile.worker
+            DATABASE_URL            = ${{Postgres.DATABASE_URL}}
+            REDIS_URL               = ${{Redis.REDIS_URL}}
+            INSTALL_ML_EXTRAS       = false
+   ```
+
+   `RAILWAY_DOCKERFILE_PATH` is required on both: Railway only auto-detects a
+   file named exactly `Dockerfile`, and this repo has three.
+
+   If you ever add a secret to the template, generate it rather than shipping
+   one — `${{secret(32)}}` produces a fresh value per deploy.
+
+4. **Create Template**, then **Publish**. Unpublished templates earn nothing;
+   the marketplace listing is the eligibility requirement.
+
+5. Turn on Template Queue emails in
+   [account notifications](https://railway.com/account/notifications). That
+   queue is the entire difference between 15% and 25%.
+
+## What actually drives the earnings
+
+The code is the easy part and it is done. The rest:
+
+- **The README is the product page.** People deploy what they understand in
+  thirty seconds. A one-paragraph "what this is", the four boxes, and one
+  screenshot beats any amount of architecture prose.
+- **Name it for what it is**, not for this project. "FastAPI + Celery +
+  Postgres + Redis" is searched for; "ViralEngine API" is not.
+- **Answer the queue.** It is a 67% raise on every dollar the template earns
+  (15% → 25%), and it is the only lever here that is fully in your control.
+- **Cheap to deploy wins.** Every GB of RAM you shave is a GB the deployer
+  does not pay for — but it is also a GB you do not earn 25% of. The reason
+  to keep it lean anyway is that a template nobody keeps running earns 25% of
+  nothing.
+
+You already have an unpublished template called `blue-wild`. Either point it
+at this repo and publish, or start fresh from the composer — but publish
+something, because an unpublished template is explicitly ineligible.
