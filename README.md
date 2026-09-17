@@ -210,6 +210,48 @@ All 7 features from the original spec, real end to end, not stubs:
      and writes to `audit_reports` (`source_type: 'competitors'` — added
      to that column's check constraint via migration).
 
+### Web Discovery
+
+An 8th feature, added on top of the original 7-feature spec: type what you
+need from the internet in plain language, and get back the top 10 real
+sites for it, plus which one is genuinely different from the rest and why.
+
+1. `app/dashboard/discover/page.tsx` + `components/SiteDiscoveryForm.tsx`
+   — a single textarea ("what do you need from the internet?"), a "Scan
+   the web" button, and a results list with the outlier visually called
+   out and its "why it's different" reasoning shown inline.
+2. `app/api/discover/route.ts` — the orchestrator:
+   - Same auth + quota consume/refund pattern as the other real-analysis
+     features.
+   - Real Tavily `/search` (`searchTopics()`, the same function the
+     Competitor Espionage Engine and Scheduling Planner use) against the
+     user's own query, over-fetching (20 results) so there's enough
+     material to actually rank.
+   - Deduplicates by domain (`dedupeByDomain`), keeping each domain's
+     highest-scoring hit — otherwise one site with several indexed pages
+     could occupy multiple top-10 slots. Requires at least 3 distinct
+     domains or the route fails outright rather than returning a hollow
+     "top 10" of 2 real results padded with noise.
+   - Sends the deduplicated real search results (title, url, content
+     excerpt, score) to Claude (`lib/anthropic.ts`,
+     `generateSiteDiscovery`), which ranks the top 10, picks exactly one
+     as the outlier, and explains concretely how it differs (angle,
+     format, audience, business model, stance) — not just "also
+     relevant."
+   - **The model never gets to invent a result.** After the call
+     returns, the route filters `sites` down to only those whose `url`
+     is one of the real candidate URLs it was actually given, and
+     verifies the named outlier is one of those returned sites; a
+     response that fails either check is treated as a failure (quota
+     refunded), not silently passed through.
+   - Writes to `audit_reports` (`source_type: 'discovery'` — added to
+     that column's check constraint via
+     `supabase/migrations/0005_add_discovery_source_type.sql`, same
+     pattern the Competitor Espionage Engine used for `'competitors'`).
+   - Not tied to any one platform/niche — this is general web research,
+     so unlike Deep-Dive or Competitor Espionage it doesn't touch
+     YouTube's API or a profile-page extraction.
+
 ### Algorithmic Scheduling & Publishing Planner
 
 1. `app/dashboard/schedule/page.tsx` + `components/ScheduleCalendar.tsx`

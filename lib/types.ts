@@ -72,11 +72,13 @@ export interface UploadDiagnosis {
   frames_analyzed: number;
 }
 
-export interface AuditReportRow<TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis | CompetitorGapAnalysis> {
+export interface AuditReportRow<
+  TAnalysis = ViralGapAnalysis | GrowthBlueprint | UploadDiagnosis | CompetitorGapAnalysis | SiteDiscoveryResult
+> {
   id: string;
   user_id: string;
   creator_profile_id: string | null;
-  source_type: 'url' | 'account' | 'upload' | 'competitors';
+  source_type: 'url' | 'account' | 'upload' | 'competitors' | 'discovery';
   source_url: string | null;
   platform: Platform | null;
   viral_score: number | null;
@@ -163,6 +165,24 @@ export interface CompetitorGapAnalysis {
   missing_topics: string[]; // topics competitors cover that this creator doesn't
   audience_sentiment_gaps: string[];
   untapped_keyword_clusters: string[]; // grounded in real Tavily search results
+}
+
+export interface DiscoveredSite {
+  url: string;
+  domain: string;
+  title: string;
+  snippet: string; // taken from the real search result, not invented
+  relevance_reason: string; // why this made the top 10 for the query
+}
+
+export interface SiteDiscoveryResult {
+  query: string;
+  sites: DiscoveredSite[]; // ranked, best match first -- exactly 10 when enough candidates exist
+  outlier: {
+    url: string; // must be one of sites[].url
+    reasoning: string; // concretely how/why this one differs from the other 9
+  };
+  summary: string;
 }
 
 export interface ScheduledPostRow {
