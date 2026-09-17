@@ -35,10 +35,18 @@ jobs:
       - run:
           name: Build
           # Dummy build-time env vars so Next.js/Clerk don't abort the build.
-          # These are never used at runtime in CI — they only satisfy static
-          # key-presence checks during `next build`.
+          # These are never used at runtime in CI -- they only satisfy static
+          # checks during `next build`.
+          #
+          # The Clerk key is NOT an arbitrary placeholder: @clerk/clerk-react
+          # validates its shape and rejects anything malformed with
+          # "The publishableKey passed to Clerk is invalid", which fails
+          # prerendering and exits 1. It must be pk_test_ followed by
+          # base64 of "<host>$". This one decodes to "dummy.clerk.accounts.dev$"
+          # and is the same value .github/workflows/ci.yml uses -- keep them
+          # identical so a fix to one is not missed on the other.
           environment:
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder00000000000000000000000000000
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZHVtbXkuY2xlcmsuYWNjb3VudHMuZGV2JA
             NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
             NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
             NEXT_PUBLIC_APP_URL: http://localhost:3000
