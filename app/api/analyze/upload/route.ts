@@ -10,11 +10,38 @@ import {
 import { generateUploadDiagnosis } from '@/lib/anthropic';
 import type { AuditReportRow, UploadDiagnosis } from '@/lib/types';
 
+/**
+ * Cloudinary's delivery host. Derived URLs are built by interpolating a
+ * caller-supplied publicId into a template, so the finished URL is checked
+ * against this before it is fetched.
+ */
+const CLOUDINARY_DELIVERY_HOST = 'res.cloudinary.com';
+
 async function fetchImageAsBase64(url: string): Promise<{ base64: string; mediaType: string } | null> {
+  // Server-side request forgery guard. `publicId` reaches buildFrameUrl /
+  // buildWaveformUrl as a path segment, and a value containing `../`, `@`,
+  // or a scheme can steer the resulting URL somewhere else entirely --
+  // including cloud metadata endpoints reachable only from this server.
+  // The prefix check on publicId narrows who can try; this makes the
+  // destination itself non-negotiable.
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== CLOUDINARY_DELIVERY_HOST) {
+    console.error('refusing to fetch derived asset outside Cloudinary:', parsed.origin);
+    return null;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    // `redirect: 'error'` matters as much as the host check above: without
+    // it Cloudinary (or anything impersonating it) could 302 this request
+    // to an internal address after the origin has already been validated.
+    const res = await fetch(parsed.toString(), { signal: controller.signal, redirect: 'error' });
     if (!res.ok) return null;
     const mediaType = res.headers.get('content-type') ?? 'image/jpeg';
     const buffer = Buffer.from(await res.arrayBuffer());
@@ -51,6 +78,14 @@ export async function POST(request: Request) {
   const expectedPrefix = `viralengine/uploads/${userId}/`;
   if (!publicId.startsWith(expectedPrefix)) {
     return NextResponse.json({ error: 'That asset does not belong to your account.' }, { status: 403 });
+  }
+
+  // startsWith alone is not enough: "viralengine/uploads/<me>/../../other"
+  // satisfies the prefix but resolves elsewhere once it is interpolated
+  // into a URL path. Restrict the id to the characters Cloudinary actually
+  // uses so traversal and scheme injection cannot be expressed at all.
+  if (!/^[A-Za-z0-9/_-]+$/.test(publicId) || publicId.includes('..')) {
+    return NextResponse.json({ error: 'That asset id is not valid.' }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();

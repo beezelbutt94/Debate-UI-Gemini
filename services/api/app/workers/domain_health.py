@@ -34,6 +34,11 @@ def verify_cname_target(hostname: str) -> bool:
 
 def get_ssl_expiry_days(hostname: str, port: int = 443, timeout: float = 5.0) -> float:
     context = ssl.create_default_context()
+    # create_default_context() leaves the floor at whatever OpenSSL was
+    # built with, which still permits TLS 1.0/1.1 on older images. Both are
+    # deprecated (RFC 8996); pin 1.2 so a downgrade cannot be negotiated
+    # while we are reading a certificate we are about to trust.
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     with socket.create_connection((hostname, port), timeout=timeout) as sock:
         with context.wrap_socket(sock, server_hostname=hostname) as ssock:
             cert = ssock.getpeercert()

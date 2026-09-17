@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# Least privilege: this workflow only checks out and builds. Without an
+# explicit block the job inherits the repository default, which can be
+# read/write on every scope -- so a compromised dependency in `npm ci`
+# would run with a token that can push.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

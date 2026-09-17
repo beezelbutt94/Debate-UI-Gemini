@@ -3,15 +3,65 @@ pipeline and the integrations router's manual "test delivery" endpoint.
 """
 import hashlib
 import hmac
+import ipaddress
 import json
+import logging
+import socket
 import time
+from urllib.parse import urlsplit
 
 import requests
 from sqlalchemy.orm import Session
 
 from app.core.models import WebhookSubscription
 
+logger = logging.getLogger(__name__)
+
 RETRY_SCHEDULE_SECONDS = [1, 2, 4, 8, 16]
+
+
+class UnsafeWebhookTarget(ValueError):
+    """A subscription URL that must never be requested from this server."""
+
+
+def assert_safe_webhook_url(target_url: str) -> None:
+    """Rejects webhook targets that point back inside our own network.
+
+    Subscription URLs are supplied by users, and this process reaches
+    places the public internet cannot: the cloud metadata endpoint
+    (169.254.169.254, which hands out instance credentials), the Postgres
+    and Redis hosts, the Kubernetes API, other internal services. Posting a
+    signed payload to one of those turns our own webhook sender into a
+    proxy for scanning and exfiltrating the private network.
+
+    Resolution happens here rather than trusting the hostname: a name the
+    attacker controls can simply have an A record of 127.0.0.1.
+    """
+    parts = urlsplit(target_url)
+
+    if parts.scheme not in ("http", "https"):
+        raise UnsafeWebhookTarget(f"unsupported scheme {parts.scheme!r}; use http or https")
+    if not parts.hostname:
+        raise UnsafeWebhookTarget("no hostname in webhook URL")
+
+    try:
+        resolved = socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80))
+    except socket.gaierror as exc:
+        raise UnsafeWebhookTarget(f"could not resolve {parts.hostname!r}: {exc}") from exc
+
+    for family, _type, _proto, _canon, sockaddr in resolved:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local      # 169.254.0.0/16 -- cloud metadata lives here
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise UnsafeWebhookTarget(
+                f"{parts.hostname!r} resolves to non-public address {ip}; refusing to deliver"
+            )
 
 
 def generate_signature(secret: str, payload_bytes: bytes) -> str:
@@ -64,9 +114,22 @@ def deliver_with_retries(target_url: str, secret: str, event: str, data: dict) -
         "X-Signature-256": generate_signature(secret, encoded),
     }
 
+    try:
+        assert_safe_webhook_url(target_url)
+    except UnsafeWebhookTarget as exc:
+        # Not retried: a target that resolves inside the network will still
+        # be inside the network in sixteen seconds.
+        logger.error("refusing webhook delivery to %s: %s", target_url, exc)
+        return False
+
     for attempt, delay in enumerate(RETRY_SCHEDULE_SECONDS):
         try:
-            response = requests.post(target_url, data=encoded, headers=headers, timeout=5)
+            # allow_redirects=False for the same reason the target is
+            # resolved above: a public URL that 302s to 169.254.169.254
+            # would otherwise walk straight past the check.
+            response = requests.post(
+                target_url, data=encoded, headers=headers, timeout=5, allow_redirects=False
+            )
             if 200 <= response.status_code < 300:
                 return True
         except requests.RequestException:

@@ -13,18 +13,34 @@ function config() {
 }
 
 /**
- * Cloudinary's standard signed-upload algorithm: sort every signable
- * param alphabetically, join as "key=value&key=value", append the API
- * secret, SHA-1 it. Unchanged for years and used identically by
- * Cloudinary's own SDKs — verified against the Cloudinary MCP connector's
- * `sign-upload` tool contract in this workspace before writing this.
+ * Cloudinary's signed-upload algorithm: sort every signable param
+ * alphabetically, join as "key=value&key=value", append the API secret,
+ * hash it.
+ *
+ * On the hash choice — CodeQL flags SHA-1 here as a weak algorithm, and in
+ * isolation it is right. But this is not our construction to pick: the
+ * digest has to match what Cloudinary independently computes, and SHA-1 is
+ * still their default. Switching unilaterally does not harden anything, it
+ * just makes every signature mismatch and all uploads fail.
+ *
+ * What it is used for also matters. This is a keyed integrity tag over
+ * non-secret upload parameters, not a password digest or a certificate
+ * signature: forging one requires the API secret that is already appended
+ * to the payload, so SHA-1's collision weakness does not give an attacker
+ * a path in.
+ *
+ * Cloudinary does support SHA-256, as a per-account setting. Enable it in
+ * the Cloudinary console, set CLOUDINARY_SIGNATURE_ALGORITHM=sha256, and
+ * this follows. The two must be changed together.
  */
+const SIGNATURE_ALGORITHM = process.env.CLOUDINARY_SIGNATURE_ALGORITHM === 'sha256' ? 'sha256' : 'sha1';
+
 function signParams(params: Record<string, string | number>, apiSecret: string): string {
   const sorted = Object.keys(params)
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join('&');
-  return createHash('sha1').update(sorted + apiSecret).digest('hex');
+  return createHash(SIGNATURE_ALGORITHM).update(sorted + apiSecret).digest('hex');
 }
 
 export interface SignedUpload {

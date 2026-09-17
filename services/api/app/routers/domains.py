@@ -142,6 +142,11 @@ def unbind_custom_domain(
     db.commit()
 
     if teardown_error:
+        # The caller is told *that* cleanup failed and what it means, but not
+        # the raw exception: kube client errors carry API-server hostnames,
+        # namespaces and config details that a tenant has no business seeing.
+        # The full text is in the ORPHANED CLUSTER RESOURCES log line above,
+        # which is where an operator will look anyway.
         return {
             "status": "partial",
             "unbound_domain": domain,
@@ -149,7 +154,6 @@ def unbind_custom_domain(
                 "The domain was unbound from this workspace, but its cluster resources "
                 "could not be removed and may still serve traffic. This needs operator cleanup."
             ),
-            "error": teardown_error,
         }
 
     return {"status": "success", "unbound_domain": domain}
