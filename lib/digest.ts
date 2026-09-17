@@ -3,6 +3,7 @@ import type {
   CompetitorGapAnalysis,
   GrowthBlueprint,
   ScriptRow,
+  SiteDiscoveryResult,
   UploadDiagnosis,
   ViralGapAnalysis,
 } from '@/lib/types';
@@ -40,6 +41,14 @@ export function digestReport(report: AuditReportRow): string {
       `Upload Diagnostic (${date}): visual hook "${a.visual_hook_clarity.verdict}" ` +
       `(${a.visual_hook_clarity.score}/100); audio balance ${a.audio_balance.score}/100 ` +
       `("${a.audio_balance.notes}"); text-overlay pacing: "${a.text_overlay_pacing.assessment}".`
+    );
+  }
+
+  if (report.source_type === 'discovery') {
+    const a = report.analysis as SiteDiscoveryResult;
+    return (
+      `Site Discovery (${date}): query "${a.query}"; ` +
+      `outlier "${a.outlier.url}" -- ${a.outlier.reasoning}`
     );
   }
 

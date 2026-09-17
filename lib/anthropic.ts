@@ -9,6 +9,8 @@ import type {
   SuiteTool,
   CompetitorGapAnalysis,
   CalendarSlot,
+  DiscoveredSite,
+  SiteDiscoveryResult,
 } from '@/lib/types';
 
 let cached: Anthropic | null = null;
@@ -871,4 +873,103 @@ export async function generateWeeklyCalendar(params: {
 
   const input = toolUse.input as { slots: CalendarSlot[] };
   return input.slots;
+}
+
+const DISCOVERY_TOOL_NAME = 'submit_site_discovery';
+
+const DISCOVERY_TOOL: Anthropic.Tool = {
+  name: DISCOVERY_TOOL_NAME,
+  description:
+    'Submit the structured Web Discovery result: the top 10 sites relevant to the query, ranked, ' +
+    'plus the one that stands out from the rest and a concrete explanation of how it differs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      sites: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 10,
+        items: {
+          type: 'object',
+          properties: {
+            url: { type: 'string', description: 'Must be exactly one of the candidate URLs provided -- never invented.' },
+            title: { type: 'string' },
+            snippet: { type: 'string', description: 'A short, faithful summary of what this result actually contains.' },
+            relevance_reason: {
+              type: 'string',
+              description: 'Why this specific result earned its rank for this exact query.',
+            },
+          },
+          required: ['url', 'title', 'snippet', 'relevance_reason'],
+        },
+        description: 'Ranked best-match-first. Exactly 10 when at least 10 real candidates were provided.',
+      },
+      outlier: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Must be the url of one of the entries in `sites`.' },
+          reasoning: {
+            type: 'string',
+            description:
+              'Concretely how this one differs from the other nine -- a different angle, format, audience, ' +
+              'business model, or stance, not just "it is also relevant".',
+          },
+        },
+        required: ['url', 'reasoning'],
+      },
+      summary: {
+        type: 'string',
+        description: 'One short paragraph describing the overall landscape these results paint for the query.',
+      },
+    },
+    required: ['sites', 'outlier', 'summary'],
+  },
+};
+
+const DISCOVERY_SYSTEM_PROMPT = `You are ViralEngine's Web Discovery engine. A creator tells you what they need
+from the internet -- a topic, a niche, a question, a kind of resource -- and you are given real, current web
+search results already fetched for that exact query (title, url, content excerpt, relevance score per result).
+
+Your job:
+1. Select and rank the 10 best results for what the creator actually asked for. Every url you return must be
+   one of the candidate urls you were given -- never invent a url, title, or fact not present in the provided
+   results.
+2. Pick exactly one of those 10 as the outlier: the result that stands out from the other nine in some real,
+   citable way -- a different angle or stance, a different format (tool vs. article vs. community vs.
+   marketplace), a different audience, a different business model, or a contrarian take. Say concretely what
+   makes it different, not just that it's also good.
+3. Write one short paragraph summarizing the landscape: what the 10 results collectively show about the topic.
+
+If fewer than 10 real candidates were provided, return as many as are genuinely relevant rather than padding
+the list with weaker duplicates. Call submit_site_discovery exactly once.`;
+
+export async function generateSiteDiscovery(params: {
+  query: string;
+  searchDigest: string;
+}): Promise<Omit<SiteDiscoveryResult, 'query'>> {
+  const anthropic = getAnthropic();
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 3072,
+    system: DISCOVERY_SYSTEM_PROMPT,
+    tools: [DISCOVERY_TOOL],
+    tool_choice: { type: 'tool', name: DISCOVERY_TOOL_NAME },
+    messages: [
+      {
+        role: 'user',
+        content: `Query: "${params.query}"\n\nCandidate search results:\n${params.searchDigest}`,
+      },
+    ],
+  });
+
+  const toolUse = message.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === DISCOVERY_TOOL_NAME
+  );
+
+  if (!toolUse) {
+    throw new Error('Anthropic response did not include the expected site discovery result.');
+  }
+
+  return toolUse.input as { sites: DiscoveredSite[]; outlier: SiteDiscoveryResult['outlier']; summary: string };
 }
