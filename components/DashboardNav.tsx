@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/script', label: 'Script Generator' },
   { href: '/dashboard/tools', label: 'Tool Suite Hub' },
   { href: '/dashboard/competitors', label: 'Competitor Espionage' },
+  { href: '/dashboard/discover', label: 'Web Discovery' },
   { href: '/dashboard/schedule', label: 'Schedule' },
   { href: '/dashboard/settings/connections', label: 'Connections' },
 ];
