@@ -32,4 +32,4 @@ configMapGenerator:
     literals:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
-      - NEXT_PUBLIC_ROOT_DOMAIN=viralvision.io
+      - NEXT_PUBLIC_ROOT_DOMAIN=viraltrending.online

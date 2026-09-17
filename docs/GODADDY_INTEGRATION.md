@@ -12,6 +12,24 @@ the next section.
 
 ---
 
+## The live site, as of this writing
+
+`https://viraltrending.online` resolves to `13.248.243.5` and
+`76.223.105.230` (A records at the apex, no CNAME) and serves a **GoDaddy
+Website Builder** page — the footer carries GoDaddy's `utm_source=wsb`
+attribution. Brand is "Viral Trending", headline "Make Your Brand Go
+Viral", and the page currently holds a contact form and an email-list
+signup. `www` resolves to the same pair.
+
+Two things follow. There is no "Interactive Video Studio" container on the
+page yet, so Step 2 of the plan (prompting GoDaddy's AI for the shell) has
+not happened. And because the apex is served from A records rather than a
+CNAME, the `app` and `api` subdomains below are free to add in GoDaddy DNS
+without disturbing the marketing site at all.
+
+---
+
+
 ## The blocker for the embedded-widget approach
 
 `/api/v1/videos/generate` requires `X-API-Key`, which
@@ -76,7 +94,7 @@ decided how the page authenticates, not as something to paste as-is.
 
 <script>
 (function () {
-  var API = "https://api.viralvision.app";
+  var API = "https://api.viraltrending.online";
   var KEY = "";              // see "The blocker" above before filling this in
   var POLL_MS = 2000;
   var DEADLINE_MS = 15 * 60 * 1000;
@@ -171,15 +189,38 @@ path reaching the user.
 
 ## Option B: split hosting (recommended)
 
-Keep the GoDaddy marketing site at the apex and run the real app on a
-subdomain.
+Keep the GoDaddy marketing site where it is and run the real app on a
+subdomain. Nothing about the apex changes — the existing A records keep
+serving the Website Builder page.
 
 1. Deploy the Next.js app in this repo to Vercel (or any host — it builds
    with `output: 'standalone'`).
-2. In GoDaddy DNS: `CNAME` record, host `app`, pointing at your host's
-   target (`cname.vercel-dns.com` for Vercel).
+2. Add two records in **GoDaddy → Domain Settings → DNS → Manage Zones**
+   for `viraltrending.online`:
+
+   | Type | Name | Value | Purpose |
+   |---|---|---|---|
+   | CNAME | `app` | `cname.vercel-dns.com` | the Next.js app |
+   | CNAME | `api` | your FastAPI host's target | `services/api` |
+
+   Leave the apex `A` records and the `www` record alone. Adding a
+   subdomain CNAME alongside a Website Builder apex is supported and does
+   not affect the marketing site.
 3. Point every CTA on the GoDaddy page at
-   `https://app.viralvision.com/dashboard/upload`.
+   `https://app.viraltrending.online/dashboard/upload`.
+4. Set these on the Next.js deployment and the API respectively:
+
+   ```
+   # Next.js
+   NEXT_PUBLIC_APP_URL=https://app.viraltrending.online
+
+   # services/api
+   CORS_ALLOWED_ORIGINS=https://app.viraltrending.online
+   ```
+
+   Note the API's allowed origin is the **app** subdomain, not the apex:
+   with split hosting the marketing page never calls the API directly, so
+   `viraltrending.online` does not belong in that list.
 
 This is the path the repo is already built for: Clerk gates `/dashboard/*`
 through `proxy.ts`, the credit ledger and Stripe webhooks are wired, and no
@@ -194,7 +235,7 @@ instead, and the Next.js route handlers call the backend server-side.
 "tighten before shipping" comment. It is now driven by two env vars:
 
 ```
-CORS_ALLOWED_ORIGINS=https://viralvision.com,https://app.viralvision.com
+CORS_ALLOWED_ORIGINS=https://viraltrending.online,https://app.viraltrending.online
 CORS_ALLOWED_ORIGIN_REGEX=https://[a-z0-9-]+\.godaddysites\.com
 ```
 
@@ -204,7 +245,7 @@ asterisk and matches nothing. Measured against `starlette` 0.38.6:
 
 | Origin | `allow_origins=[..., "https://*.godaddysites.com"]` | `allow_origin_regex` |
 |---|---|---|
-| `https://viralvision.com` | `ACAO: https://viralvision.com` | same |
+| `https://viraltrending.online` | `ACAO: https://viraltrending.online` | same |
 | `https://myshop.godaddysites.com` | **no header** | `ACAO: https://myshop.godaddysites.com` |
 | `https://evil.com` | no header | no header |
 

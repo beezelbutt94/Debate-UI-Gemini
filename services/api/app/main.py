@@ -33,7 +33,7 @@ app = FastAPI(title="ViralVision Platform API", version="0.1.0")
 # only -- scheme, host and port all count, and a trailing slash does not
 # belong in an origin.
 #
-#   CORS_ALLOWED_ORIGINS=https://viralvision.com,https://app.viralvision.com
+#   CORS_ALLOWED_ORIGINS=https://viraltrending.online,https://app.viraltrending.online
 #
 # Starlette compares `allow_origins` entries as whole strings. A "*" inside
 # one of them is a literal asterisk, not a wildcard: "https://*.example.com"
