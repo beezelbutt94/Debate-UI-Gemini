@@ -6,13 +6,34 @@
 # downgrades that to a warning.
 FROM node:22-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+# .npmrc carries legacy-peer-deps=true, without which `npm ci` dies on
+# mem0ai's optional @anthropic-ai/sdk peer range. Copying it is not
+# optional -- see the reasoning in .npmrc itself.
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 FROM node:22-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# NEXT_PUBLIC_* values are inlined into the client bundle during
+# `next build`, so they have to exist as real env vars at build time, not
+# just at runtime. Docker-based hosts (Railway, Fly, plain `docker build`)
+# pass them as build args, which a stage only sees once it declares them.
+# Clerk is the strict one: it validates the publishable key's shape while
+# prerendering and exits non-zero on a malformed or missing value.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_ROOT_DOMAIN
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
+    NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
+    NEXT_PUBLIC_ROOT_DOMAIN=$NEXT_PUBLIC_ROOT_DOMAIN
+
 RUN npm run build
 
 FROM node:22-slim AS runner
