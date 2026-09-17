@@ -157,10 +157,55 @@ The template composer is a UI flow; it cannot be driven from here. Steps:
    If you ever add a secret to the template, generate it rather than shipping
    one — `${{secret(32)}}` produces a fresh value per deploy.
 
-5. **Create Template**, then **Publish**. Unpublished templates earn nothing;
+5. **Rename it before publishing.** The project and its services are named
+   after this codebase, and "ViralVision Platform API" is not what anyone
+   searches the marketplace for. The template's name and description are
+   editable at publish time and are the whole listing -- they decide whether
+   it gets deployed at all, which is the only thing kickbacks are a share
+   of. Paste these:
+
+   **Name**
+
+   ```
+   FastAPI + Celery + Postgres + Redis
+   ```
+
+   **Description** (one line, shows in search results)
+
+   ```
+   Production-shaped async task backend: FastAPI behind a healthcheck, a
+   Celery worker on three priority queues, managed Postgres and Redis wired
+   in. Boots with no third-party accounts.
+   ```
+
+   **README** (shows on the template page)
+
+   ```markdown
+   Four services, wired together and ready to deploy:
+
+   - **api** — FastAPI on uvicorn, binds `$PORT`, healthcheck at `/healthz`
+   - **worker** — Celery, three priority queues (`premium_sla`,
+     `standard_jobs`, `draft_preview`)
+   - **Postgres** — managed, schema created automatically on first boot
+   - **Redis** — managed, broker and result backend
+
+   The API creates its own schema before serving and exits non-zero if the
+   database is unreachable, so a broken deploy fails loudly instead of
+   serving 500s. Nothing here needs an external account or API key.
+
+   Set `CORS_ALLOWED_ORIGINS` to the web origin that calls the API; leave it
+   unset and cross-origin browser requests are refused (server-to-server
+   callers are unaffected).
+   ```
+
+   Leave the service names `api`, `worker`, `Postgres`, `Redis` as they are
+   — those are what a deployer sees on the canvas, and they are already
+   generic.
+
+6. **Create Template**, then **Publish**. Unpublished templates earn nothing;
    the marketplace listing is the eligibility requirement.
 
-6. Turn on Template Queue emails in
+7. Turn on Template Queue emails in
    [account notifications](https://railway.com/account/notifications). That
    queue is the entire difference between 15% and 25%.
 
@@ -171,8 +216,9 @@ The code is the easy part and it is done. The rest:
 - **The README is the product page.** People deploy what they understand in
   thirty seconds. A one-paragraph "what this is", the four boxes, and one
   screenshot beats any amount of architecture prose.
-- **Name it for what it is**, not for this project. "FastAPI + Celery +
-  Postgres + Redis" is searched for; "ViralEngine API" is not.
+- **Name it for what it is**, not for this project — exact copy to paste is
+  in step 5 above. "FastAPI + Celery + Postgres + Redis" is searched for;
+  "ViralEngine API" is not.
 - **Answer the queue.** It is a 67% raise on every dollar the template earns
   (15% → 25%), and it is the only lever here that is fully in your control.
 - **Cheap to deploy wins.** Every GB of RAM you shave is a GB the deployer
