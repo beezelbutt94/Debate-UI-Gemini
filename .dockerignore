@@ -21,11 +21,3 @@ __pycache__
 *.pyc
 .venv
 venv
-
-# Docs and infra manifests are not needed at runtime.
-docs
-k8s
-argocd
-tests
-*.md
-!README.md
