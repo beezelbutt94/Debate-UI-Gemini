@@ -4,7 +4,7 @@
 version: 2.1
 
 jobs:
-  build-and-test:
+  install:
     docker:
       - image: cimg/node:22.19
     steps:
@@ -24,6 +24,20 @@ jobs:
           paths:
             - ~/.npm
 
+      # Share node_modules with downstream jobs so they skip a second npm ci.
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+
+  lint-and-typecheck:
+    docker:
+      - image: cimg/node:22.19
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
       - run:
           name: Lint
           command: npm run lint
@@ -32,8 +46,29 @@ jobs:
           name: Type check
           command: npm run typecheck
 
+  build:
+    docker:
+      - image: cimg/node:22.19
+    # large = 4 vCPU / 8 GB RAM; Next.js builds are CPU-bound and benefit
+    # from the extra cores for parallel compilation and minification.
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      # Next.js writes incremental build artefacts to .next/cache.
+      # Restoring this between runs can cut build time significantly.
+      # Keys cascade from most-specific to broadest so partial cache hits work.
+      - restore_cache:
+          keys:
+            - next-cache-v1-{{ .Branch }}-{{ .Revision }}
+            - next-cache-v1-{{ .Branch }}-
+            - next-cache-v1-
+
       - run:
           name: Build
+          no_output_timeout: 10m
           # Dummy build-time env vars so Next.js/Clerk don't abort the build.
           # These are never used at runtime in CI -- they only satisfy static
           # checks during `next build`.
@@ -53,7 +88,18 @@ jobs:
             NEXT_PUBLIC_ROOT_DOMAIN: localhost
           command: npm run build
 
+      - save_cache:
+          key: next-cache-v1-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - .next/cache
+
 workflows:
-  sample:
+  ci:
     jobs:
-      - build-and-test
+      - install
+      - lint-and-typecheck:
+          requires:
+            - install
+      - build:
+          requires:
+            - install
