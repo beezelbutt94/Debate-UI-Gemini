@@ -217,7 +217,7 @@ class Agent:
         try:
             return {"status": "EXECUTED", "result": dispatcher.dispatch(action, decision["payload"], run_id=run_id)}
         except Exception as exc:
-            return {"status": "FAILED", "error": f"{action} failed: {exc}"}
+            return {"status": "FAILED", "error": dispatcher.failure_summary(action, exc)}
 
 
 def _run_cost(run_id: str) -> float:

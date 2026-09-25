@@ -65,8 +65,8 @@ def resolve_approval(approval_id: str, req: ResolveRequest) -> dict[str, Any]:
         return approvals.resolve(approval_id, req.decision)
     except LookupError:
         raise HTTPException(404, "Approval not found") from None
-    except approvals.ApprovalError as exc:
-        raise HTTPException(409, str(exc)) from None
+    except approvals.ApprovalError:
+        raise HTTPException(409, "Approval is not pending") from None
 
 
 @router.post("/orchestrator/run", status_code=202)

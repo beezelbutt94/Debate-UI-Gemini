@@ -221,3 +221,21 @@ def test_approval_rows_store_validated_payloads(client):
     with db.session_scope() as s:
         approval = s.query(ActionApproval).one()
         assert approval.payload["base_branch"] == "main"  # defaults filled by the schema
+
+
+def test_adapter_failures_do_not_leak_exception_text(client, monkeypatch):
+    from app.adapters import github
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("push to https://x-access-token:ghp_SECRET@github.com/acme/app.git failed")
+
+    monkeypatch.setattr(github.GitHubAdapter, "create_fix_pr", boom)
+    run_id = client.post("/agents/run", json={"agent": "CodeGenerationAgent", "instruction": "Fix it"}).json()["run_id"]
+    approval_id = client.get("/approvals/pending").json()[0]["id"]
+
+    resolved = client.post(f"/approvals/{approval_id}/resolve", json={"decision": "APPROVE"})
+    assert resolved.json()["status"] == "FAILED"
+    assert "ghp_SECRET" not in resolved.text
+    assert resolved.json()["result"]["error"] == "CREATE_PR failed (RuntimeError); see server logs for details"
+    assert "ghp_SECRET" not in client.get(f"/runs/{run_id}").text
+    assert client.post(f"/approvals/{approval_id}/resolve", json={"decision": "APPROVE"}).json() == {"detail": "Approval is not pending"}

@@ -108,6 +108,16 @@ def validate(action_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise InvalidActionError(f"Invalid {action_type} payload: {exc.errors(include_url=False)}") from exc
 
 
+def failure_summary(action_type: str, exc: Exception) -> str:
+    """Log the full failure server-side; return only what is safe to show an operator.
+
+    Adapter exceptions can carry request URLs, headers or tokens, so their text
+    stays in the logs and API responses get the exception type alone.
+    """
+    logger.error("%s failed", action_type, exc_info=exc)
+    return f"{action_type} failed ({type(exc).__name__}); see server logs for details"
+
+
 def dispatch(action_type: str, payload: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
     clean = validate(action_type, payload)
     schema, handler = ACTIONS[action_type]

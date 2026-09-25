@@ -69,7 +69,7 @@ def resolve(approval_id: str, decision: str) -> dict[str, Any]:
             result = dispatcher.dispatch(action_type, payload, run_id=run_id)
             final = "EXECUTED"
         except Exception as exc:  # adapter failure is recorded, not raised to the reviewer
-            result = {"status": "error", "error": str(exc)}
+            result = {"status": "error", "error": dispatcher.failure_summary(action_type, exc)}
             final = "FAILED"
     else:
         final = "REJECTED"
