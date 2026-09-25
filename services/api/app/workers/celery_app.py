@@ -23,6 +23,27 @@ celery_app.conf.update(
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # Retry the broker on startup as well as mid-run. Without this Celery 5
+    # logs a CPendingDeprecationWarning on every boot, and a worker that
+    # starts fractionally before Redis is reachable dies instead of waiting.
+    broker_connection_retry_on_startup=True,
+    # The default is 100 retries with the backoff capped at 32s, i.e. roughly
+    # 45 minutes of a worker that is *up* but consuming nothing. That was
+    # observed in production on Railway: the managed Redis restarted and
+    # rotated its password, and because REDIS_URL is injected into the
+    # container's environment at deploy time, the running worker kept
+    # presenting the old credentials --
+    #
+    #   consumer: Cannot connect to redis://default:**@redis.railway.internal:6379//:
+    #   invalid username-password pair or user is disabled..
+    #   Trying again in 32.00 seconds... (16/100)
+    #
+    # No amount of retrying fixes stale credentials. The worker has to exit so
+    # the platform restarts it and re-injects the current REDIS_URL. A worker
+    # serves no HTTP, so no health check catches this state -- it looks alive.
+    # Failing fast and letting the restart policy do its job is the recovery
+    # path; sitting in a retry loop is not.
+    broker_connection_max_retries=5,
     task_queues=(
         Queue("premium_sla", _default_exchange, routing_key="render.premium", queue_arguments={"x-max-priority": 10}),
         Queue("standard_jobs", _default_exchange, routing_key="render.standard", queue_arguments={"x-max-priority": 5}),

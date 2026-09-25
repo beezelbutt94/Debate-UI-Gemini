@@ -59,6 +59,15 @@ export default defineRailway((ctx) => {
     // No healthcheck and no public networking: a Celery worker serves no
     // HTTP, so a health check would fail it forever and a public domain
     // would expose nothing.
+    //
+    // That is also why this one needs ALWAYS. With no health check, nothing
+    // watches a worker that is up but consuming nothing -- which is exactly
+    // what happens when the managed Redis rotates its password and the
+    // container is still holding the REDIS_URL injected at deploy time.
+    // celery_app.py now caps broker retries so the worker exits on stale
+    // credentials instead of retrying for ~45 minutes; ALWAYS is the half
+    // that brings it back with the current variables.
+    restartPolicyType: "ALWAYS",
   });
 
   return project("viralengine-api", {

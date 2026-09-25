@@ -98,6 +98,41 @@ build minutes before they have seen anything work. It is now
 `railway.json` — Railway's docs mark Config as Code deprecated with a hard
 cutoff of **2026-12-01**, and new services can no longer opt into it at all.
 
+## The worker wedge, and why it needed a code fix
+
+Two days after this stack went live the managed Redis restarted and rotated
+its password. The worker did not crash — it sat in this, once every 32
+seconds:
+
+```
+consumer: Cannot connect to redis://default:**@redis.railway.internal:6379//:
+invalid username-password pair or user is disabled..
+Trying again in 32.00 seconds... (16/100)
+```
+
+`REDIS_URL` is a reference variable, resolved and injected into the
+container's environment **at deploy time**. A running process keeps the value
+it started with, so no amount of retrying could ever succeed — the
+credentials in hand were permanently wrong. Celery's default of 100 retries
+with the backoff capped at 32s meant roughly **45 minutes of a worker that is
+up, reports healthy, and consumes nothing.** A worker serves no HTTP, so
+there is no health check to catch it. It resolved only because a redeploy
+re-injected the variable.
+
+Two changes, because either alone is insufficient:
+
+- `services/api/app/workers/celery_app.py` sets
+  `broker_connection_max_retries=5`, so stale credentials make the worker
+  **exit** rather than retry. It also sets
+  `broker_connection_retry_on_startup=True`, which is the documented
+  successor to the setting Celery 5 warns about on every boot.
+- The Railway service gets `restartPolicyType: ALWAYS`, which is what
+  actually brings it back — with the current `REDIS_URL`.
+
+Worth carrying into any template with a queue worker in it: **failing fast is
+the recovery path when the bad input is an environment variable.** Retrying
+only helps when the thing you are retrying against can change.
+
 ## Publishing it
 
 The template composer is a UI flow; it cannot be driven from here. Steps:
