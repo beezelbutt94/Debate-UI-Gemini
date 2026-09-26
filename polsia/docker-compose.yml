@@ -1,0 +1,68 @@
+# Full stack: Postgres, Redis, API, Celery worker + beat, and the dashboard.
+#   cp .env.example .env && docker compose up --build
+# Dashboard: http://localhost:3000   API docs: http://localhost:8000/docs
+
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://polsia:polsia@postgres:5432/polsia
+    REDIS_URL: redis://redis:6379/0
+    CORS_ORIGINS: http://localhost:3000
+  volumes:
+    - workspace:/app/workspace
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: polsia
+      POSTGRES_PASSWORD: polsia
+      POSTGRES_DB: polsia
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polsia"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    <<: *backend
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *backend
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+
+  beat:
+    <<: *backend
+    command: celery -A app.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    volumes: []
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  workspace:

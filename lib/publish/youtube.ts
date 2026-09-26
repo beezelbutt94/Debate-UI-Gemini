@@ -27,7 +27,7 @@ export async function publishToYouTube(userId: string, post: ScheduledPostRow): 
   const contentLength = source.headers.get('content-length');
   const contentType = source.headers.get('content-type') ?? 'video/mp4';
 
-  const title = (post.caption ?? 'ViralEngine scheduled upload').slice(0, 95) + ' #Shorts';
+  const title = (post.caption ?? 'Viral Trending scheduled upload').slice(0, 95) + ' #Shorts';
   const initRes = await fetch(
     'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
     {

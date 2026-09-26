@@ -229,7 +229,7 @@ def publish_video(payload: PublishRequest, current_user: User = Depends(get_curr
     if not video or video.status != "completed" or not video.output_url:
         raise HTTPException(status_code=400, detail="Video is not ready for publishing")
 
-    caption = payload.caption or "Automated ViralVision publish"
+    caption = payload.caption or "Automated Viral Trending publish"
 
     if payload.platform == "tiktok":
         if not current_user.tiktok_access_token:

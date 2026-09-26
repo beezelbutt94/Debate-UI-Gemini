@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { auth } from '@clerk/nextjs/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { ScriptGeneratorForm } from '@/components/ScriptGeneratorForm';
@@ -9,7 +10,7 @@ export default async function ScriptGeneratorPage() {
   const admin = createSupabaseAdminClient();
 
   const [{ data: subscription }, { data: scripts }] = await Promise.all([
-    admin.from('subscriptions').select('*').eq('user_id', userId!).single(),
+    admin.from('subscriptions').select('*').eq('user_id', userId!).maybeSingle(),
     admin
       .from('scripts')
       .select('*')
@@ -22,9 +23,9 @@ export default async function ScriptGeneratorPage() {
   const pastScripts = (scripts ?? []) as ScriptRow[];
 
   return (
-    <div className="max-w-4xl mx-auto p-8 text-neutral-100 min-h-screen space-y-8">
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:p-8 text-neutral-100 min-h-screen space-y-8">
       <DashboardNav />
-      <div className="border-b border-neutral-800 pb-6 flex items-center justify-between">
+      <div className="border-b border-neutral-800 pb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest">
             Script &amp; Storyboard Generator
@@ -48,12 +49,14 @@ export default async function ScriptGeneratorPage() {
           </h2>
           <ul className="space-y-2">
             {pastScripts.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800 text-xs"
-              >
+              <li key={s.id}>
+                <Link
+                  href={`/dashboard/scripts/${s.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800 text-xs gap-3 hover:border-neutral-600 transition-colors"
+                >
                 <span className="text-neutral-300 truncate max-w-xs">{s.title}</span>
                 <span className="font-mono text-neutral-500 uppercase">{s.target_platform ?? 'any'}</span>
+              </Link>
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
-# ViralVision Platform API (`services/api`)
+# Viral Trending Platform API (`services/api`)
 
-A FastAPI + Celery backend organized from the ViralVision architecture
+A FastAPI + Celery backend organized from the Viral Trending architecture
 docs archived in `../../docs/viralvision-source/` (see
 `../../docs/PLATFORM_ROADMAP.md` for the full map). It is a **separate
 service** from the Next.js app at the repo root — the two talk over HTTP,
@@ -32,7 +32,7 @@ any endpoint as working:
   (see the lazy client init in `k8s_controller.py`).
 
 Think of this as: the code you'd start iterating on to build the
-"ViralVision" platform described in the docs, not a deployed system.
+"Viral Trending" platform described in the docs, not a deployed system.
 
 ## Layout
 
@@ -58,4 +58,4 @@ Think of this as: the code you'd start iterating on to build the
 ## Env vars
 
 See the consolidated list in the repo root `.env.example` under the
-"ViralVision platform service" section.
+"Viral Trending platform service" section.

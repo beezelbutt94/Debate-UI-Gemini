@@ -1,4 +1,4 @@
-"""FastAPI application assembly for the ViralVision platform service.
+"""FastAPI application assembly for the Viral Trending platform service.
 
 Run locally with `uvicorn app.main:app --reload` from `services/api/`
 (after installing `requirements.txt` and setting the env vars documented
@@ -27,7 +27,7 @@ from app.routers import (
     videos,
 )
 
-app = FastAPI(title="ViralVision Platform API", version="0.1.0")
+app = FastAPI(title="Viral Trending Platform API", version="0.1.0")
 
 # Browser origins allowed to call this API. Comma-separated, exact matches
 # only -- scheme, host and port all count, and a trailing slash does not

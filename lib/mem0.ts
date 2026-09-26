@@ -1,10 +1,11 @@
 import { MemoryClient } from 'mem0ai';
+import { ConfigurationError } from '@/lib/errors';
 
 let cached: MemoryClient | null = null;
 
 function getMem0(): MemoryClient {
   if (!process.env.MEM0_API_KEY) {
-    throw new Error('MEM0_API_KEY is not configured.');
+    throw new ConfigurationError('MEM0_API_KEY');
   }
   if (!cached) {
     cached = new MemoryClient({ apiKey: process.env.MEM0_API_KEY });
@@ -19,7 +20,7 @@ export interface CreatorVoiceMemory {
 }
 
 /**
- * Retrieves whatever ViralEngine has previously learned about a creator's
+ * Retrieves whatever Viral Trending has previously learned about a creator's
  * voice/tone for this prompt (via a semantic search, not a flat fetch, so
  * only the memories relevant to what they're writing now come back).
  *

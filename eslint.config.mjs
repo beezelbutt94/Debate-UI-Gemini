@@ -3,7 +3,7 @@ import nextVitals from 'eslint-config-next/core-web-vitals';
 
 const eslintConfig = defineConfig([
   ...nextVitals,
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'services/**']),
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'services/**', 'polsia/**']),
 ]);
 
 export default eslintConfig;

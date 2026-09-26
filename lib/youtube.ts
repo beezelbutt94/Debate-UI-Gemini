@@ -1,3 +1,5 @@
+import { ConfigurationError, UserFacingError } from '@/lib/errors';
+
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
 interface YoutubeChannelListResponse {
@@ -46,7 +48,7 @@ export interface YoutubeChannelSnapshot {
 
 function apiKey(): string {
   if (!process.env.YOUTUBE_API_KEY) {
-    throw new Error('YOUTUBE_API_KEY is not configured.');
+    throw new ConfigurationError('YOUTUBE_API_KEY');
   }
   return process.env.YOUTUBE_API_KEY;
 }
@@ -103,7 +105,7 @@ export async function fetchYoutubeChannelSnapshot(rawHandle: string): Promise<Yo
 
   const channel = channelRes.items[0];
   if (!channel) {
-    throw new Error(`No YouTube channel found for handle "${rawHandle}".`);
+    throw new UserFacingError(`No YouTube channel found for handle "${rawHandle}".`, 404);
   }
 
   const uploadsPlaylistId = channel.contentDetails.relatedPlaylists.uploads;

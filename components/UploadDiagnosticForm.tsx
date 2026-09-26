@@ -1,69 +1,13 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Loader2, TriangleAlert, UploadCloud } from 'lucide-react';
+import { Loader2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AuditReportRow, UploadDiagnosis } from '@/lib/types';
+import { uploadVideo } from '@/lib/upload-client';
 
 type DiagnosticReport = AuditReportRow<UploadDiagnosis>;
-
-interface SignedUploadResponse {
-  cloudName: string;
-  apiKey: string;
-  timestamp: number;
-  signature: string;
-  folder: string;
-  allowedFormats: string;
-}
-
-interface CloudinaryUploadResponse {
-  public_id: string;
-  secure_url: string;
-  duration?: number;
-  error?: { message: string };
-}
-
-/**
- * XMLHttpRequest (not fetch) is the only way to get real upload-progress
- * events for a multipart body -- fetch's request streaming isn't paired
- * with a progress callback in browsers yet. This uploads the video bytes
- * straight to Cloudinary; they never touch our own server.
- */
-function uploadToCloudinary(
-  file: File,
-  signed: SignedUploadResponse,
-  onProgress: (percent: number) => void
-): Promise<CloudinaryUploadResponse> {
-  return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('api_key', signed.apiKey);
-    formData.append('timestamp', String(signed.timestamp));
-    formData.append('signature', signed.signature);
-    formData.append('folder', signed.folder);
-    formData.append('allowed_formats', signed.allowedFormats);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${signed.cloudName}/video/upload`);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      try {
-        const body = JSON.parse(xhr.responseText) as CloudinaryUploadResponse;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(body);
-        } else {
-          reject(new Error(body.error?.message ?? `Cloudinary upload failed (${xhr.status})`));
-        }
-      } catch {
-        reject(new Error(`Cloudinary upload failed (${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network error while uploading to Cloudinary.'));
-    xhr.send(formData);
-  });
-}
 
 export function UploadDiagnosticForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,11 +26,7 @@ export function UploadDiagnosticForm() {
 
     try {
       setStage('uploading');
-      const signRes = await fetch('/api/uploads/sign', { method: 'POST' });
-      const signBody = await signRes.json();
-      if (!signRes.ok) throw new Error(signBody.error ?? 'Could not start upload.');
-
-      const uploaded = await uploadToCloudinary(file, signBody as SignedUploadResponse, setProgress);
+      const uploaded = await uploadVideo(file, setProgress);
 
       setStage('diagnosing');
       const diagnoseRes = await fetch('/api/analyze/upload', {
@@ -140,19 +80,14 @@ export function UploadDiagnosticForm() {
         </label>
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {report && <DiagnosisCard report={report} />}
     </div>
   );
 }
 
-function DiagnosisCard({ report }: { report: DiagnosticReport }) {
+export function DiagnosisCard({ report }: { report: DiagnosticReport }) {
   const d = report.analysis;
 
   return (

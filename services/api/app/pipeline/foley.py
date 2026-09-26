@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-FOLEY_ASSET_DIR = os.getenv("FOLEY_ASSET_DIR", "/var/viralvision/assets/foley")
+FOLEY_ASSET_DIR = os.getenv("FOLEY_ASSET_DIR", "/var/viral-trending/assets/foley")
 
 
 class SFXEvent(BaseModel):

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 /**
- * Authoritative answer to "is the ViralVision platform service wired up?".
+ * Authoritative answer to "is the Viral Trending platform service wired up?".
  *
  * The `/api/v1/:path*` rewrite in next.config.mjs only exists when
  * INTERNAL_API_URL is set. Client components can't read that, so without

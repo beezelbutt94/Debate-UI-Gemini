@@ -70,7 +70,7 @@ export default defineRailway((ctx) => {
     restartPolicyType: "ALWAYS",
   });
 
-  return project("viralengine-api", {
+  return project("viral-trending-api", {
     resources: [group("Backend", [db, cache, api, worker])],
   });
 });

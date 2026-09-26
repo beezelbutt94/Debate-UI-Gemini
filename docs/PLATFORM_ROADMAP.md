@@ -1,13 +1,13 @@
-# ViralVision platform expansion — roadmap & source map
+# Viral Trending platform expansion — roadmap & source map
 
 This documents a large set of architecture/design material uploaded for
-this repo, describing a much bigger "ViralVision" AI video-generation and
+this repo, describing a much bigger Viral Trending AI video-generation and
 distribution platform than the app currently at the repo root (**ViralSync**
 — a small, working, compliant tool that boosts a creator's own posts
 through official ad APIs; see the root `README.md`). The two are different
 products in the source material: same general space (short-form video /
 creator distribution), different name, different scope, different stack
-(ViralSync is Next.js + Supabase only; ViralVision's docs assume a
+(ViralSync is Next.js + Supabase only; the platform docs assume a
 separate Python/FastAPI + Celery + Kubernetes backend).
 
 Nothing here replaces or modifies ViralSync. Everything is additive:

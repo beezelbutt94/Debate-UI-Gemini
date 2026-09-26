@@ -18,7 +18,7 @@ data:
         *Started At:* <!date^{{ .StartsAt.Unix }}^{date_num} {time_secs}|{{ .StartsAt }}>
         ---
       {{ end }}
-      *Action:* <https://grafana.viralvision.io/d/gpu-telemetry?var-device={{ .CommonLabels.device_id }}|Open GPU Dashboard>
+      *Action:* <https://grafana.viraltrending.online/d/gpu-telemetry?var-device={{ .CommonLabels.device_id }}|Open GPU Dashboard>
     {{ end }}
 
     {{ define "discord.gpu.title" }}
@@ -32,5 +32,5 @@ data:
         **Affected Device:** `{{ .Labels.device_id }}`
         **Node/Host:** `{{ .Labels.instance }}`
       {{ end }}
-      **Grafana Telemetry:** https://grafana.viralvision.io/d/gpu-telemetry
+      **Grafana Telemetry:** https://grafana.viraltrending.online/d/gpu-telemetry
     {{ end }}

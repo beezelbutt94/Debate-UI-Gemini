@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ExternalLink, Loader2, RefreshCw, TriangleAlert, Wand2 } from 'lucide-react';
+import { ExternalLink, Loader2, RefreshCw, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { ToolRecommendation } from '@/lib/types';
 
 interface RecommendationsResponse {
@@ -64,12 +65,7 @@ export function ToolSuiteHub() {
         </Button>
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {loading && !data && (
         <div className="py-16 flex justify-center text-neutral-500">

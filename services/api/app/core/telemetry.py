@@ -8,44 +8,44 @@ import time
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 ACTIVE_TRANSCODE_GAUGE = Gauge(
-    "viralvision_active_transcodes",
+    "viral_trending_active_transcodes",
     "Current active video encoding jobs running across the cluster",
     ["tier"],
 )
 
 TRANSCODE_DURATION_HISTOGRAM = Histogram(
-    "viralvision_transcode_duration_seconds",
+    "viral_trending_transcode_duration_seconds",
     "Time taken to render and transcode videos end-to-end",
     ["tier", "status"],
     buckets=(10, 30, 60, 90, 120, 180, 240, 300, 450, 600),
 )
 
 GPU_VRAM_UTILIZATION_PERCENT = Gauge(
-    "viralvision_gpu_vram_usage_percentage",
+    "viral_trending_gpu_vram_usage_percentage",
     "VRAM percentage utilization on active video encoding GPU nodes",
     ["device_id"],
 )
 
 FAILED_RENDERS_COUNTER = Counter(
-    "viralvision_render_failures_total",
+    "viral_trending_render_failures_total",
     "Total failed video generation tasks",
     ["reason"],
 )
 
 DOMAIN_SSL_EXPIRY_DAYS = Gauge(
-    "viralvision_custom_domain_ssl_expiry_days",
+    "viral_trending_custom_domain_ssl_expiry_days",
     "Days remaining until a custom domain's SSL certificate expires",
     ["workspace_id", "domain"],
 )
 
 DOMAIN_DNS_STATUS = Gauge(
-    "viralvision_custom_domain_dns_valid",
+    "viral_trending_custom_domain_dns_valid",
     "Whether a custom domain's CNAME resolves to the platform edge (1=valid, 0=invalid)",
     ["workspace_id", "domain"],
 )
 
 DOMAIN_PROBE_ERRORS = Counter(
-    "viralvision_custom_domain_probe_errors_total",
+    "viral_trending_custom_domain_probe_errors_total",
     "Total connection or probe errors during domain verification",
     ["workspace_id", "domain", "error_type"],
 )

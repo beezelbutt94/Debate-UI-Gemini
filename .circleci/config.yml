@@ -1,5 +1,5 @@
-# CircleCI configuration for Next.js (viralengine)
-# CircleCI configuration for the ViralEngine Next.js application.
+# CircleCI configuration for Next.js (viral-trending)
+# CircleCI configuration for the Viral Trending Next.js application.
 # See: https://circleci.com/docs/reference/configuration-reference/
 version: 2.1
 

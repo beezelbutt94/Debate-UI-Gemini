@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Link2, Unlink, TriangleAlert, CheckCircle2 } from 'lucide-react';
+import { Loader2, Link2, Unlink, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { ConnectablePlatform, PlatformConnectionSummary } from '@/lib/types';
 
 const PLATFORM_INFO: Record<ConnectablePlatform, { label: string; description: string; caveat: string }> = {
   youtube: {
     label: 'YouTube',
     description: 'Direct upload via the YouTube Data API (videos.insert). Publishes as a Short.',
-    caveat: 'No review gate -- works immediately once YOUTUBE_OAUTH_CLIENT_ID/SECRET are set.',
+    caveat: 'Works as soon as you connect; uploads appear on your channel as Shorts.',
   },
   tiktok: {
     label: 'TikTok',
@@ -28,7 +29,10 @@ const PLATFORM_INFO: Record<ConnectablePlatform, { label: string; description: s
   },
 };
 
-const ALL_PLATFORMS: ConnectablePlatform[] = ['youtube', 'tiktok', 'facebook', 'canva'];
+// Canva's OAuth flow works, but nothing uses the connection yet (design
+// creation isn't built; the Tool Suite Hub deep-links to Canva instead), so
+// it isn't offered here. Add 'canva' back once a feature uses it.
+const ALL_PLATFORMS: ConnectablePlatform[] = ['youtube', 'tiktok', 'facebook'];
 
 export function ConnectionsPanel() {
   const [connections, setConnections] = useState<PlatformConnectionSummary[]>([]);
@@ -74,12 +78,7 @@ export function ConnectionsPanel() {
 
   return (
     <div className="space-y-3">
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {ALL_PLATFORMS.map((platform) => {
         const info = PLATFORM_INFO[platform];

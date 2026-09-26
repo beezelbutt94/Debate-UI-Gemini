@@ -6,12 +6,12 @@ import ws from 'k6/ws';
 import { check, sleep } from 'k6';
 import { Trend, Rate, Counter } from 'k6/metrics';
 
-const videoGenLatency = new Trend('viralvision_video_gen_duration_ms');
-const videoRenderSuccess = new Rate('viralvision_video_render_success_rate');
-const s3ChunkUploadTime = new Trend('viralvision_s3_chunk_upload_ms');
-const s3UploadSuccess = new Rate('viralvision_s3_upload_success_rate');
-const wsRoundtripLatency = new Trend('viralvision_ws_roundtrip_latency_ms');
-const activeWsConnections = new Counter('viralvision_active_ws_connections');
+const videoGenLatency = new Trend('viral_trending_video_gen_duration_ms');
+const videoRenderSuccess = new Rate('viral_trending_video_render_success_rate');
+const s3ChunkUploadTime = new Trend('viral_trending_s3_chunk_upload_ms');
+const s3UploadSuccess = new Rate('viral_trending_s3_upload_success_rate');
+const wsRoundtripLatency = new Trend('viral_trending_ws_roundtrip_latency_ms');
+const activeWsConnections = new Counter('viral_trending_active_ws_connections');
 
 const BASE_URL = __ENV.TARGET_URL || 'http://localhost:8000';
 const WS_URL = __ENV.WS_TARGET_URL || 'ws://localhost:1234';
@@ -52,10 +52,10 @@ export const options = {
   },
   thresholds: {
     http_req_duration: ['p(95)<800', 'p(99)<2000'],
-    viralvision_video_render_success_rate: ['rate>0.98'],
-    viralvision_s3_upload_success_rate: ['rate>0.99'],
-    viralvision_s3_chunk_upload_ms: ['p(95)<1200'],
-    viralvision_ws_roundtrip_latency_ms: ['p(95)<75', 'p(99)<150'],
+    viral_trending_video_render_success_rate: ['rate>0.98'],
+    viral_trending_s3_upload_success_rate: ['rate>0.99'],
+    viral_trending_s3_chunk_upload_ms: ['p(95)<1200'],
+    viral_trending_ws_roundtrip_latency_ms: ['p(95)<75', 'p(99)<150'],
   },
 };
 

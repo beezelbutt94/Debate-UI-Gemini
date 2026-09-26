@@ -1,4 +1,4 @@
-# ViralEngine roadmap
+# Viral Trending roadmap
 
 All 7 features of the original spec are shipped — see README.md for what
 each one does. This file is now a record of how each one actually got
@@ -159,7 +159,7 @@ serverless function.
 
 One security addition worth reusing forward for any future
 user-owns-this-asset check: `app/api/analyze/upload/route.ts` refuses any
-`publicId` outside the caller's own `viralengine/uploads/<clerk id>/`
+`publicId` outside the caller's own `viral-trending/uploads/<clerk id>/`
 folder prefix (403) before doing anything else, and re-fetches the
 asset's real duration from Cloudinary's Admin API rather than trusting
 whatever the client claims.
@@ -228,7 +228,7 @@ Google Ads OAuth flow already documented honestly, one product ago.
 Building four such flows is a real, large, separate undertaking (each is
 its own OAuth app registration, consent screen, and token-storage
 problem, mirroring the effort `lib/oauth/` used to represent in this repo
-before the ViralEngine pivot) — deliberately not attempted or stubbed
+before the Viral Trending pivot) — deliberately not attempted or stubbed
 here.
 
 What *is* real: `app/api/tools/recommendations/route.ts` pulls a

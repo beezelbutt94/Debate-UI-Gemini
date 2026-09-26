@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ConfigurationError } from '@/lib/errors';
 import type {
   ViralGapAnalysis,
   TimelineRecommendation,
@@ -17,7 +18,7 @@ let cached: Anthropic | null = null;
 
 function getAnthropic(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured.');
+    throw new ConfigurationError('ANTHROPIC_API_KEY');
   }
   if (!cached) {
     cached = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -110,7 +111,7 @@ export interface AnalysisResult {
   timeline_recommendations: TimelineRecommendation[];
 }
 
-const SYSTEM_PROMPT = `You are ViralEngine's Viral Gap Analyzer, an expert short-form video strategist.
+const SYSTEM_PROMPT = `You are Viral Trending's Viral Gap Analyzer, an expert short-form video strategist.
 You are given the raw extracted page content for a TikTok, YouTube Shorts, or Facebook Reels URL
 (title, description, visible view/like/comment counts if present, and any other on-page text —
 this was scraped from the live page, so it is noisy HTML-derived text, not a clean transcript).
@@ -251,7 +252,7 @@ const BLUEPRINT_TOOL: Anthropic.Tool = {
   },
 };
 
-const BLUEPRINT_SYSTEM_PROMPT = `You are ViralEngine's Creator Account Deep-Dive strategist.
+const BLUEPRINT_SYSTEM_PROMPT = `You are Viral Trending's Creator Account Deep-Dive strategist.
 You are given real, per-platform data gathered about a creator's account(s): for YouTube, official
 YouTube Data API v3 numbers (subscriber count, recent upload view/like/comment counts, computed
 posting cadence and view-to-subscriber ratio); for TikTok/Instagram, extracted public profile page
@@ -401,12 +402,12 @@ const UPLOAD_TOOL: Anthropic.Tool = {
   },
 };
 
-const UPLOAD_SYSTEM_PROMPT = `You are ViralEngine's Multimodal Video Upload Diagnostic reviewer.
+const UPLOAD_SYSTEM_PROMPT = `You are Viral Trending's Multimodal Video Upload Diagnostic reviewer.
 You are given a series of real still frames extracted from an uploaded short-form video at named
 timestamps, followed by a real waveform image rendering the video's audio track. These are actual
 pixels from the actual upload, not descriptions -- look at them directly.
 
-Apply the same short-form benchmarks used elsewhere in ViralEngine: a strong hook needs to land in
+Apply the same short-form benchmarks used elsewhere in Viral Trending: a strong hook needs to land in
 the first 1-2 frames you're shown (the 0-3s window). Judge audio balance from the waveform's shape
 (flat/silent stretches, clipped/solid blocks suggesting distortion, relative loudness across the
 timeline) -- you cannot hear the audio, so ground every audio claim in what the waveform image
@@ -536,7 +537,7 @@ const SCRIPT_TOOL: Anthropic.Tool = {
 };
 
 function buildScriptSystemPrompt(hasMemory: boolean): string {
-  return `You are ViralEngine's Algorithmic Script & Storyboard Generator, writing for short-form
+  return `You are Viral Trending's Algorithmic Script & Storyboard Generator, writing for short-form
 video (TikTok, YouTube Shorts, Facebook Reels).
 
 Structure every script exactly as: a spoken hook readable in under 3 seconds, then 2-6 scenes each
@@ -546,7 +547,7 @@ format of videos that actually go viral on these platforms, not generic ad copy.
 
 ${
   hasMemory
-    ? "Below are real memories ViralEngine has previously recorded about this creator's voice and " +
+    ? "Below are real memories Viral Trending has previously recorded about this creator's voice and " +
       'tone from their past scripts. Write in a way that is consistent with them — do not contradict ' +
       'an established style choice without a good reason tied to this specific prompt.'
     : 'No prior voice/tone memory exists for this creator yet (this may be their first script, or ' +
@@ -656,7 +657,7 @@ const RECOMMENDATIONS_TOOL: Anthropic.Tool = {
   },
 };
 
-const RECOMMENDATIONS_SYSTEM_PROMPT = `You are ViralEngine's Creator Tool Suite Hub. You are given a
+const RECOMMENDATIONS_SYSTEM_PROMPT = `You are Viral Trending's Creator Tool Suite Hub. You are given a
 digest of a creator's own recent Viral Gap Analyzer / Account Deep-Dive / Upload Diagnostic reports
 and generated scripts -- their actual weak points, already identified elsewhere in the product.
 
@@ -741,7 +742,7 @@ const COMPETITOR_TOOL: Anthropic.Tool = {
   },
 };
 
-const COMPETITOR_SYSTEM_PROMPT = `You are ViralEngine's Competitor Espionage & Gap Engine. You are given:
+const COMPETITOR_SYSTEM_PROMPT = `You are Viral Trending's Competitor Espionage & Gap Engine. You are given:
 1. Real per-competitor data snapshots (YouTube: official API stats; TikTok/Instagram: extracted public
    profile page content) for 3-5 tracked competitors.
 2. Real current web search results for trending topics in this creator's niche.
@@ -825,10 +826,10 @@ const CALENDAR_TOOL: Anthropic.Tool = {
   },
 };
 
-const CALENDAR_SYSTEM_PROMPT = `You are ViralEngine's Algorithmic Scheduling & Publishing Planner.
+const CALENDAR_SYSTEM_PROMPT = `You are Viral Trending's Algorithmic Scheduling & Publishing Planner.
 You are given real current search results about optimal posting times for short-form video
 platforms, and (when available) a digest of this creator's own actual posting cadence from their
-past ViralEngine reports.
+past Viral Trending reports.
 
 Real per-user audience-timezone data isn't available in this deployment (that would need each
 creator's own Metricool account connected, which isn't built yet) -- so ground every suggested time
@@ -926,7 +927,7 @@ const DISCOVERY_TOOL: Anthropic.Tool = {
   },
 };
 
-const DISCOVERY_SYSTEM_PROMPT = `You are ViralEngine's Web Discovery engine. A creator tells you what they need
+const DISCOVERY_SYSTEM_PROMPT = `You are Viral Trending's Web Discovery engine. A creator tells you what they need
 from the internet -- a topic, a niche, a question, a kind of resource -- and you are given real, current web
 search results already fetched for that exact query (title, url, content excerpt, relevance score per result).
 
