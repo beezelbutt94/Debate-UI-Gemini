@@ -14,18 +14,18 @@ const NAV_ITEMS = [
 ];
 
 /**
- * Explicitly imported by each ViralEngine dashboard page rather than
+ * Explicitly imported by each Viral Trending dashboard page rather than
  * hoisted into app/dashboard/layout.tsx, since that layout would also
- * wrap the separate, pre-existing ViralVision scaffold pages under
+ * wrap the separate, pre-existing platform-scaffold pages under
  * app/dashboard/* (trends, settings/domain, renders/[id]) — this keeps
- * ViralEngine's nav from leaking onto that unrelated, unbuilt scaffold.
+ * Viral Trending's nav from leaking onto that unrelated, unbuilt scaffold.
  */
 export function DashboardNav() {
   return (
     <nav className="flex items-center justify-between mb-2">
       <div className="flex items-center gap-6">
         <Link href="/" className="text-sm font-black text-neutral-100">
-          ViralEngine
+          Viral Trending
         </Link>
         {NAV_ITEMS.map((item) => (
           <Link

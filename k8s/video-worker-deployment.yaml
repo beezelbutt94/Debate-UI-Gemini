@@ -4,23 +4,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: viralvision-video-worker
+  name: viral-trending-video-worker
   namespace: production
   labels:
-    app: viralvision-video-worker
+    app: viral-trending-video-worker
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: viralvision-video-worker
+      app: viral-trending-video-worker
   template:
     metadata:
       labels:
-        app: viralvision-video-worker
+        app: viral-trending-video-worker
     spec:
       containers:
         - name: celery-worker
-          image: ghcr.io/viralvision/worker:latest
+          image: ghcr.io/viral-trending/worker:latest
           imagePullPolicy: IfNotPresent
           command:
             - "celery"
@@ -44,12 +44,12 @@ spec:
               cpu: "4"
           envFrom:
             - secretRef:
-                name: viralvision-production-secrets
+                name: viral-trending-production-secrets
             - configMapRef:
-                name: viralvision-production-config
+                name: viral-trending-production-config
           volumeMounts:
             - name: scratch-space
-              mountPath: /tmp/viralvision_production
+              mountPath: /tmp/viral_trending_production
       volumes:
         - name: scratch-space
           emptyDir:

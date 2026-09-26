@@ -1,4 +1,4 @@
-# ViralEngine
+# Viral Trending
 
 A monetization-enabled SaaS platform for content creators, covering all 7
 features of the original spec: analyze a video URL or an uploaded file,
@@ -92,7 +92,7 @@ All 7 features from the original spec, real end to end, not stubs:
 2. **The upload itself never touches our server.** `app/api/uploads/sign`
    mints a Cloudinary-signed upload (`lib/cloudinary.ts`,
    `createSignedVideoUpload`) scoped to a per-user folder
-   (`viralengine/uploads/<clerk user id>/`); the browser then POSTs the
+   (`viral-trending/uploads/<clerk user id>/`); the browser then POSTs the
    video bytes straight to Cloudinary. This is the real fix for Vercel's
    ~4.5MB serverless request body ceiling — a multi-hundred-MB video
    proxied through our own route would fail immediately.
@@ -172,7 +172,7 @@ All 7 features from the original spec, real end to end, not stubs:
      doesn't analyze new external content, it's a free synthesis layer
      over analyses the user already paid a quota unit to generate. A
      deliberate scoping choice, documented in the route itself and in
-     `docs/VIRALENGINE_ROADMAP.md`, not an oversight.
+     `docs/VIRAL_TRENDING_ROADMAP.md`, not an oversight.
 3. What's real vs. what isn't: recommendations and deep links are fully
    real. Actually *driving* Descript/OpusClip/HyperFrames/Canva on the
    user's behalf (e.g., auto-submitting a clip to OpusClip) would need a
@@ -180,7 +180,7 @@ All 7 features from the original spec, real end to end, not stubs:
    same category of constraint ViralSync's own TikTok/Google Ads OAuth
    flow already documented honestly for this repo, one product ago. That
    automation is intentionally not built or stubbed here; see
-   `docs/VIRALENGINE_ROADMAP.md`.
+   `docs/VIRAL_TRENDING_ROADMAP.md`.
 
 ### Competitor Espionage & Gap Engine
 
@@ -298,7 +298,7 @@ features 2 and 7 already made about it). The platforms `scheduled_posts`
 actually needs to publish to — **YouTube, TikTok, and Facebook** — each
 turned out to have real self-serve OAuth2 too, just with different
 review/audit gates before going fully public. Full per-service verdicts
-and evidence: `docs/VIRALENGINE_ROADMAP.md`.
+and evidence: `docs/VIRAL_TRENDING_ROADMAP.md`.
 
 What's real and live:
 
@@ -341,7 +341,7 @@ manages more than one Facebook Page.
   default `subscriptions` row (Creator tier, 10 analyses/month) on
   signup.
 
-See `docs/DEBUG_RUN.md`'s "ViralEngine (current app)" section for the real
+See `docs/DEBUG_RUN.md`'s "Viral Trending (current app)" section for the real
 issues this surfaced and how each was fixed — including two genuine
 Next.js 16 breaking changes (`middleware.ts` → `proxy.ts`, `next lint`
 removed) that don't match most training data.
@@ -362,7 +362,7 @@ still genuinely not built:
   nothing calls `design:content:write` yet to turn a Tool Suite Hub
   recommendation into an actual Canva design instead of a deep link.
 - **Per-user timezone storage**, **TikTok publish-status polling**, and
-  **multi-Page selection for Facebook** — see `docs/VIRALENGINE_ROADMAP.md`
+  **multi-Page selection for Facebook** — see `docs/VIRAL_TRENDING_ROADMAP.md`
   for what each would take.
 
 Each is the same honest-scoping pattern ViralSync's own
@@ -439,14 +439,14 @@ before assuming a similar function is safe to expose more broadly — and
 
 ## Deployment checklist (Vercel)
 
-1. Set every var from `.env.example`'s ViralEngine section in the Vercel
+1. Set every var from `.env.example`'s Viral Trending section in the Vercel
    project (Production **and** Preview — Preview needs its own
    Clerk/Stripe test-mode keys, or builds will fail the same way local
    `next build` does without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`).
 2. `NEXT_PUBLIC_APP_URL` must be the real deployed origin — Stripe
    Checkout success/cancel URLs and the Clerk/Stripe webhook URLs you
    register are built from it.
-3. Confirm Supabase RLS is enabled on all seven ViralEngine tables (it is,
+3. Confirm Supabase RLS is enabled on all seven Viral Trending tables (it is,
    per the migrations — re-verify after any schema change with
    `get_advisors(type: 'security')`, not just by reading the migration).
 4. Complete the Clerk↔Supabase Third Party Auth dashboard step (above)
@@ -469,12 +469,12 @@ before assuming a similar function is safe to expose more broadly — and
    (`{NEXT_PUBLIC_APP_URL}/api/oauth/{platform}/callback`) on the real
    deployed origin, not `localhost`.
 
-## ViralVision platform expansion (separate, unbuilt scaffold)
+## Viral Trending platform expansion (separate, unbuilt scaffold)
 
 `services/api/`, `services/collab/`, `k8s/`, and `argocd/` are an
-organized-but-unrun scaffold for a much larger, separate "ViralVision"
+organized-but-unrun scaffold for a much larger Viral Trending
 AI video-generation platform described in a batch of architecture docs.
-They don't affect anything above — the ViralEngine app you're reading
+They don't affect anything above — the Viral Trending app you're reading
 about still works exactly as documented, and `proxy.ts`'s tenant-routing
 half (which belongs to this scaffold) stays disabled unless
 `MULTI_TENANT_ROUTING_ENABLED=true` is set. See

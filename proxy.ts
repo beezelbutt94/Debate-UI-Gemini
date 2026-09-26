@@ -8,14 +8,14 @@ import type { NextRequest } from 'next/server';
  * node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md.
  * This file therefore does two unrelated things in one exported function:
  *
- * 1. Clerk auth gating for ViralEngine itself (reachable without a
+ * 1. Clerk auth gating for Viral Trending itself (reachable without a
  *    session: the marketing root, Clerk's own auth pages, and the two
  *    signature-verified webhook endpoints; everything else under
  *    /dashboard or /api requires a signed-in user).
  * 2. The pre-existing, disabled-by-default multi-tenant custom-domain
- *    routing for the separate ViralVision platform expansion (see
+ *    routing for the separate Viral Trending platform expansion (see
  *    docs/PLATFORM_ROADMAP.md) — unchanged from before, still gated
- *    behind MULTI_TENANT_ROUTING_ENABLED so it can't affect ViralEngine's
+ *    behind MULTI_TENANT_ROUTING_ENABLED so it can't affect Viral Trending's
  *    routing until multi-tenancy is actually wanted.
  */
 

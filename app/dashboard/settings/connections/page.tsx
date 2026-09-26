@@ -23,9 +23,9 @@ export default async function ConnectionsPage({
       <DashboardNav />
       <div className="border-b border-neutral-800 pb-6">
         <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest">Connections</span>
-        <h1 className="text-2xl font-black mt-1">Connect the platforms ViralEngine publishes to</h1>
+        <h1 className="text-2xl font-black mt-1">Connect the platforms Viral Trending publishes to</h1>
         <p className="text-xs text-neutral-500 mt-2 max-w-xl">
-          Each connection is your own OAuth grant to your own account -- ViralEngine never has a shared,
+          Each connection is your own OAuth grant to your own account -- Viral Trending never has a shared,
           platform-owned account it posts from. Scheduled posts on the Schedule page publish through these
           connections once their publish time passes.
         </p>

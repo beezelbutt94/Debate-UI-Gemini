@@ -8,7 +8,7 @@ export default function Home() {
     <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-6">
       <div className="max-w-xl w-full text-center space-y-8">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-400 border border-amber-900/60 bg-amber-950/40 rounded-full px-3 py-1">
-          <Sparkles className="w-3 h-3" /> ViralEngine
+          <Sparkles className="w-3 h-3" /> Viral Trending
         </span>
         <h1 className="text-4xl font-black leading-tight">
           Paste a link. Find the gap between your video and a viral one.

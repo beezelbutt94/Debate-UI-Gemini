@@ -3,7 +3,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ViralEngine',
+  title: 'Viral Trending',
   description: 'Compliant, API-based amplification for your content.',
 };
 

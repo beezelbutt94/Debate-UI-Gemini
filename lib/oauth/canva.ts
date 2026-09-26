@@ -15,7 +15,7 @@ const SCOPES = 'design:content:write design:meta:read profile:read';
  * Of the five services investigated for this layer, Canva is the only one
  * with a genuine self-serve, multi-tenant OAuth product a third party can
  * register without a partnership conversation -- see
- * docs/VIRALENGINE_ROADMAP.md. A *private* integration (Canva Developer
+ * docs/VIRAL_TRENDING_ROADMAP.md. A *private* integration (Canva Developer
  * Portal) works immediately for testing; going live for arbitrary users
  * requires submitting it to Canva's integration review queue.
  */

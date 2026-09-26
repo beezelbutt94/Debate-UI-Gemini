@@ -21,7 +21,7 @@ const DAY_INDEX: Record<CalendarSlot['day_of_week'], number> = {
  * (today counts if the time hasn't passed yet). No per-user timezone is
  * stored in this schema yet, so this resolves against the server's own
  * clock (UTC in a typical deployment) -- a real limitation, not hidden:
- * see docs/VIRALENGINE_ROADMAP.md.
+ * see docs/VIRAL_TRENDING_ROADMAP.md.
  */
 function nextOccurrence(dayOfWeek: CalendarSlot['day_of_week'], timeLocal: string): Date {
   const [hours, minutes] = timeLocal.split(':').map(Number);

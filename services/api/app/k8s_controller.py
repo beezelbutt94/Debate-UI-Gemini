@@ -24,7 +24,7 @@ logger = logging.getLogger("k8s_controller")
 NAMESPACE = os.getenv("K8S_NAMESPACE", "production")
 INGRESS_CLASS = "nginx"
 CLUSTER_ISSUER = "letsencrypt-production"
-PLATFORM_CNAME_TARGET = os.getenv("PLATFORM_CNAME_TARGET", "cname.viralvision.io")
+PLATFORM_CNAME_TARGET = os.getenv("PLATFORM_CNAME_TARGET", "cname.viraltrending.online")
 UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
 
 redis_client = redis.from_url(UPSTASH_REDIS_URL, decode_responses=True) if UPSTASH_REDIS_URL else None
@@ -76,7 +76,7 @@ class CustomDomainController:
             "metadata": {
                 "name": resource_name,
                 "namespace": NAMESPACE,
-                "labels": {"app.kubernetes.io/managed-by": "viralvision-domain-controller", "workspace_id": workspace_id},
+                "labels": {"app.kubernetes.io/managed-by": "viral-trending-domain-controller", "workspace_id": workspace_id},
             },
             "spec": {
                 "secretName": secret_name,
@@ -91,7 +91,7 @@ class CustomDomainController:
             metadata=client.V1ObjectMeta(
                 name=resource_name,
                 namespace=NAMESPACE,
-                labels={"app.kubernetes.io/managed-by": "viralvision-domain-controller", "workspace_id": workspace_id},
+                labels={"app.kubernetes.io/managed-by": "viral-trending-domain-controller", "workspace_id": workspace_id},
                 annotations={
                     "kubernetes.io/ingress.class": INGRESS_CLASS,
                     "cert-manager.io/cluster-issuer": CLUSTER_ISSUER,
@@ -112,7 +112,7 @@ class CustomDomainController:
                                     path_type="Prefix",
                                     backend=client.V1IngressBackend(
                                         service=client.V1IngressServiceBackend(
-                                            name="viralvision-web", port=client.V1ServiceBackendPort(number=3000)
+                                            name="viral-trending-web", port=client.V1ServiceBackendPort(number=3000)
                                         )
                                     ),
                                 )

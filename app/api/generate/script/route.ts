@@ -73,12 +73,12 @@ export async function POST(request: Request) {
 
     if (existingProfile) {
       profileId = existingProfile.id;
-      mem0AgentKey = existingProfile.mem0_agent_key ?? `viralengine-${userId}-${randomUUID().slice(0, 8)}`;
+      mem0AgentKey = existingProfile.mem0_agent_key ?? `viral-trending-${userId}-${randomUUID().slice(0, 8)}`;
       if (!existingProfile.mem0_agent_key) {
         await admin.from('creators_profiles').update({ mem0_agent_key: mem0AgentKey }).eq('id', profileId);
       }
     } else {
-      mem0AgentKey = `viralengine-${userId}-${randomUUID().slice(0, 8)}`;
+      mem0AgentKey = `viral-trending-${userId}-${randomUUID().slice(0, 8)}`;
       const { data: inserted, error: insertProfileError } = await admin
         .from('creators_profiles')
         .insert({ user_id: userId, mem0_agent_key: mem0AgentKey })

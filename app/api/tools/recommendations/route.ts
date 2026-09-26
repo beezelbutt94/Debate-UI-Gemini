@@ -11,7 +11,7 @@ const STARTER_RECOMMENDATIONS: ToolRecommendation[] = [
     tool: 'canva',
     label: TOOL_INFO.canva.label,
     url: TOOL_INFO.canva.url,
-    reason: "You don't have any ViralEngine reports yet, so this is a general starting point, not a personalized finding.",
+    reason: "You don't have any Viral Trending reports yet, so this is a general starting point, not a personalized finding.",
     action: 'Build a thumbnail template for your niche before your first upload.',
     source: '(no prior reports)',
   },
@@ -21,7 +21,7 @@ const STARTER_RECOMMENDATIONS: ToolRecommendation[] = [
 // doesn't analyze new external content, it synthesizes recommendations
 // over reports/scripts the user already paid a quota unit to generate.
 // Treating it as a free value-add layer over already-owned analyses,
-// documented here rather than left implicit -- see docs/VIRALENGINE_ROADMAP.md.
+// documented here rather than left implicit -- see docs/VIRAL_TRENDING_ROADMAP.md.
 export async function GET() {
   const { userId } = await auth();
   if (!userId) {

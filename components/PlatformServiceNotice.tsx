@@ -2,7 +2,7 @@ import React from 'react';
 import { ServerCog } from 'lucide-react';
 
 /**
- * Shown on the ViralVision dashboard pages when `services/api` isn't
+ * Shown on the Viral Trending dashboard pages when `services/api` isn't
  * reachable — which is the default, since that service isn't deployed.
  * Says so plainly rather than rendering a controls-shaped dead end.
  */
