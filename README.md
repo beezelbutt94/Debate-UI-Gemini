@@ -327,19 +327,43 @@ manages more than one Facebook Page.
 
 ### Shared platform pieces
 
-- Billing: `app/api/stripe/checkout/route.ts` creates a real Stripe
-  Checkout session against real test-mode prices (Creator/Pro/Studio,
-  created via the Stripe MCP connector under the "Peshets sandbox"
-  account); `app/api/stripe/webhook/route.ts` verifies the signature,
-  dedupes on Stripe event id (`stripe_webhook_events`), and syncs plan
-  tier + quota limit into `subscriptions`.
+- Plans and billing: Free (3 analyses/month) plus paid Creator (10),
+  Pro (50) and Studio (200) per billing period, defined once in
+  `lib/plans.ts`. Every AI tool uses one analysis; failed runs are
+  refunded. `/dashboard/billing` shows plan, usage, renewal and
+  cancellation state, starts Stripe Checkout
+  (`app/api/stripe/checkout/route.ts`, one subscription per user) and
+  opens the Stripe customer portal for upgrades, downgrades, card updates
+  and cancellation (`app/api/stripe/portal/route.ts`). Prices shown on the
+  landing and billing pages are read from Stripe, never hardcoded.
+  `app/api/stripe/webhook/route.ts` verifies the signature, dedupes on the
+  event id (and forgets it again if handling fails, so Stripe's retry is
+  processed), and re-reads the subscription from Stripe on every event
+  (`lib/billing.ts`): entitled statuses (active, trialing, past_due) get
+  the paid tier, anything else falls back to Free, and each paid renewal
+  invoice starts a new quota period. Returning from Checkout also syncs
+  directly, so the new plan shows even before the webhook lands.
+- Admin: `/admin` (overview with users, plan mix, estimated MRR, 7-day
+  usage, latest errors and a configuration checklist; `/admin/users` with
+  search and a reset-usage action; `/admin/events` for the application
+  event log). Access is granted only by the `ADMIN_EMAILS` (verified
+  emails) / `ADMIN_USER_IDS` server env vars; everyone else gets a 404,
+  and `/api/admin/*` re-checks on every request.
+- Event log: `lib/events.ts` records failures and notable actions in
+  `app_events` (no secrets or content), which the admin area reads.
 - Auth: `proxy.ts` (Next.js 16's renamed `middleware.ts`) gates
   `/dashboard/*` and `/api/*` behind a Clerk session, redirecting page
   requests to `/sign-in` and returning a JSON 401 for API requests.
   `app/api/webhooks/clerk/route.ts` syncs `user.created` /
-  `user.updated` / `user.deleted` into the `users` table and creates a
-  default `subscriptions` row (Creator tier, 10 analyses/month) on
-  signup.
+  `user.updated` / `user.deleted` into the `users` table, creates the
+  Free plan row on signup, and cancels any Stripe subscription when an
+  account is deleted. If that webhook is missing or late, `lib/account.ts`
+  creates the same rows on the user's first request, so a new user is
+  never locked out.
+- Account pages: `/dashboard` (home with a getting-started checklist),
+  `/dashboard/history` plus `/dashboard/reports/[id]` and
+  `/dashboard/scripts/[id]` (every saved report and script, owner-only),
+  `/dashboard/billing`, and the public `/help`.
 
 See `docs/DEBUG_RUN.md`'s "Viral Trending (current app)" section for the real
 issues this surfaced and how each was fixed — including two genuine
@@ -358,9 +382,10 @@ still genuinely not built:
   recommends and deep-links to these three instead of driving them; that
   isn't a scoping gap, it's the honest ceiling of what's actually
   buildable without a partnership conversation.
-- **Canva design-creation.** The OAuth connection is real and live;
+- **Canva design-creation.** The OAuth connection flow is real, but
   nothing calls `design:content:write` yet to turn a Tool Suite Hub
-  recommendation into an actual Canva design instead of a deep link.
+  recommendation into an actual Canva design instead of a deep link, so
+  the Connections page doesn't offer Canva until something uses it.
 - **Per-user timezone storage**, **TikTok publish-status polling**, and
   **multi-Page selection for Facebook** — see `docs/VIRAL_TRENDING_ROADMAP.md`
   for what each would take.
@@ -375,13 +400,12 @@ product ago.
 2. Copy `.env.example` to `.env.local` and fill in Clerk, Supabase,
    Stripe, Anthropic, Tavily, YouTube Data API v3, Cloudinary, and Mem0
    keys.
-3. Apply `supabase/migrations/0001_viralengine_init.sql` and
-   `0002_platform_connections.sql` to your Supabase project
-   (`supabase db push`, or paste into the SQL editor) -- both need the
-   `pgsodium`/Supabase Vault extension, already enabled on the live
-   project. A live project already has both applied — project ref
-   `dcesehxmssqsszzasott` ("unseen-reels"); ask for its URL/keys rather
-   than provisioning a second one.
+3. Apply every file in `supabase/migrations/` in order to your Supabase
+   project (`supabase db push`, or paste into the SQL editor). They need
+   the Supabase Vault extension (on by default). `0006` adds the Free
+   tier, monthly quota periods, safe publishing, the admin event log and
+   the recommendation cache; every migration applies cleanly to a fresh
+   project.
 4. In the Supabase dashboard: Authentication → Sign In / Providers →
    Third Party Auth → add Clerk (needs your Clerk instance's Frontend API
    URL). This is a manual, one-time step no CLI/API here can perform —
@@ -391,10 +415,17 @@ product ago.
 5. In the Clerk dashboard: add a webhook endpoint at
    `{NEXT_PUBLIC_APP_URL}/api/webhooks/clerk` subscribed to
    `user.created`, `user.updated`, `user.deleted`.
-6. In the Stripe dashboard (or via the Stripe MCP connector): point a
-   webhook at `{NEXT_PUBLIC_APP_URL}/api/stripe/webhook` for
-   `checkout.session.completed`, `customer.subscription.updated`,
-   `customer.subscription.deleted`.
+6. In the Stripe dashboard: create a recurring price for each paid plan
+   (Creator, Pro, Studio) and put their ids in `STRIPE_PRICE_*`; enable
+   the customer portal (Settings → Billing → Customer portal) with plan
+   switching between those three prices and cancellation allowed; and
+   point a webhook at `{NEXT_PUBLIC_APP_URL}/api/stripe/webhook` for
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`,
+   `invoice.paid` and `invoice.payment_failed`.
+   To exercise billing locally without a Stripe account, run
+   [stripe-mock](https://github.com/stripe/stripe-mock) and set
+   `STRIPE_API_BASE=http://localhost:12111` (never in a deployment).
 7. Optional, for the OAuth connections + publish trigger: register apps
    with Google Cloud Console (YouTube), developers.tiktok.com, Meta for
    Developers, and/or canva.dev per the comments in `.env.example`, and
@@ -406,7 +437,9 @@ product ago.
    anything more frequent). For the 15-minute cadence, add the
    `PUBLISH_CRON_URL` and `CRON_SECRET` repository secrets that
    `.github/workflows/publish-cron.yml` uses.
-8. `npm run dev`
+8. Set `ADMIN_EMAILS` to your own (verified) sign-in email to reach
+   `/admin`, and `NEXT_PUBLIC_SUPPORT_EMAIL` for the Help page.
+9. `npm run dev`. `npm test` runs the unit tests (`tests/unit`).
 
 ## Database schema
 
@@ -423,7 +456,12 @@ once step 4 above is done):
   (`competitors`) beyond the original three via migration.
 - `scripts` — generated storyboards, tone parameters, target platform.
 - `scheduled_posts` — the content calendar.
-- `subscriptions` — Stripe plan tier + atomic quota usage counters.
+- `subscriptions` — plan tier (free/creator/pro/studio), Stripe state,
+  atomic quota usage counters and the current quota period.
+- `app_events` (`0006`) — application event log for the admin area,
+  service-role only.
+- `tool_recommendation_cache` (`0006`) — the Tool Suite Hub's last
+  answer per user, so page views don't each cost an AI call.
 - `stripe_webhook_events` — dedupe table, service-role only.
 - `platform_connections` (`0002_platform_connections.sql`) — per-user
   OAuth connections to YouTube/TikTok/Facebook/Canva. Tokens never touch
@@ -457,7 +495,7 @@ before assuming a similar function is safe to expose more broadly — and
 6. Keep Stripe in test mode until you're ready to take real payments —
    flipping to live mode is a deliberate, user-visible, hard-to-reverse
    action worth its own go/no-go.
-7. `npm run typecheck && npm run build && npm run lint` locally before
+7. `npm run typecheck && npm test && npm run build && npm run lint` locally before
    every deploy — all three are real, working checks now (see
    `docs/DEBUG_RUN.md` for what was broken about `lint` before this pass).
 8. If publishing is wanted, register the OAuth apps in `.env.example`'s

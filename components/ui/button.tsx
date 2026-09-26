@@ -21,6 +21,10 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   lg: 'h-12 px-6 text-base',
 };
 
+function hasOwnBackground(className: string | undefined): boolean {
+  return !!className && /(^|\s)bg-/.test(className);
+}
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', ...props }, ref) => {
     return (
@@ -28,7 +32,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(
           'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none',
-          VARIANT_CLASSES[variant],
+          // Two competing bg-* utilities resolve by stylesheet order, not
+          // by the order written here, so a caller's own background (the
+          // amber primary buttons) could silently lose to the variant's.
+          // When the caller sets a background, the variant colours step aside.
+          hasOwnBackground(className) ? undefined : VARIANT_CLASSES[variant],
           SIZE_CLASSES[size],
           className
         )}

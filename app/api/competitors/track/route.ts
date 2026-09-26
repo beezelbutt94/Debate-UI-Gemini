@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import { fetchYoutubeChannelSnapshot } from '@/lib/youtube';
 import { extractUrlContent, searchTopics, TavilyRateLimitError } from '@/lib/tavily';
 import { buildAccountProfileUrl } from '@/lib/platform';
@@ -56,7 +59,7 @@ async function snapshotCompetitor(c: CompetitorHandle): Promise<CompetitorSnapsh
       handle: c.handle,
       platform: c.platform,
       summary: '',
-      fetch_error: err instanceof Error ? err.message : 'Fetch failed.',
+      fetch_error: publicErrorMessage(err, 'Could not fetch this account right now.'),
     };
   }
 }
@@ -93,19 +96,8 @@ export async function POST(request: Request) {
   const niche = typeof body.niche === 'string' && body.niche.trim().length > 0 ? body.niche.trim() : null;
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'competitors');
+  if (quotaDenied) return quotaDenied;
 
   try {
     const snapshots = await Promise.all(handles.map(snapshotCompetitor));
@@ -126,7 +118,9 @@ export async function POST(request: Request) {
       const results = await searchTopics(query);
       searchDigest = results.map((r) => `"${r.title}": ${r.content.slice(0, 300)}`).join('\n');
     } catch (searchErr) {
-      searchDigest = `(search unavailable: ${searchErr instanceof Error ? searchErr.message : 'unknown error'})`;
+      // Search is supplementary context: carry on without it, but record why.
+      await logEvent('warn', 'competitors.search_unavailable', { userId, error: searchErr });
+      searchDigest = '(web search unavailable for this run)';
     }
 
     const [{ data: ownReports }, { data: ownScripts }] = await Promise.all([
@@ -196,13 +190,13 @@ export async function POST(request: Request) {
 
     if (insertError || !report) {
       console.error('audit_reports insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'competitors');
       return NextResponse.json({ error: 'Could not save the competitor report.' }, { status: 500 });
     }
 
     return NextResponse.json({ report: report as AuditReportRow<CompetitorGapAnalysis> }, { status: 200 });
   } catch (err) {
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+    await refundQuota(admin, userId, 'competitors');
 
     if (err instanceof TavilyRateLimitError) {
       return NextResponse.json(
@@ -214,10 +208,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error('competitors/track failed', err);
+    await logEvent('error', 'competitors.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Competitor analysis failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Competitor analysis failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

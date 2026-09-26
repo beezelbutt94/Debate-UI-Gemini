@@ -1,6 +1,9 @@
 import { headers } from 'next/headers';
 import { Webhook } from 'svix';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { logEvent } from '@/lib/events';
+import { getStripe } from '@/lib/stripe';
+import { PLAN_QUOTA } from '@/lib/plans';
 
 interface ClerkEmailAddress {
   id: string;
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
   try {
     event = await verifyClerkWebhook(req);
   } catch (err) {
-    console.error('Clerk webhook verification failed:', err);
+    await logEvent('warn', 'clerk.webhook_bad_signature', { error: err });
     return new Response('Invalid signature', { status: 400 });
   }
 
@@ -74,28 +77,30 @@ export async function POST(req: Request) {
         return new Response('Missing email address', { status: 400 });
       }
 
-      const { error: userError } = await supabase.from('users').insert({
-        id,
-        email,
-      });
+      // Upserts that ignore existing rows: the account may already have been
+      // created on first use (lib/account.ts), and Clerk retries webhooks.
+      const { error: userError } = await supabase
+        .from('users')
+        .upsert({ id, email }, { onConflict: 'id', ignoreDuplicates: true });
       if (userError) {
-        console.error(`Failed to insert users row for ${id}:`, userError);
+        await logEvent('error', 'clerk.user_insert_failed', { userId: id, detail: { code: userError.code } });
         return new Response('Database error inserting user', { status: 500 });
       }
 
-      // A working free default so a brand-new user can use the product
-      // before ever touching Stripe.
-      const { error: subError } = await supabase.from('subscriptions').insert({
-        user_id: id,
-        plan_tier: 'creator',
-        status: 'active',
-        quota_analyses_limit: 10,
-      });
+      // A working free plan so a brand-new user can use the product before
+      // ever touching Stripe.
+      const { error: subError } = await supabase
+        .from('subscriptions')
+        .upsert(
+          { user_id: id, plan_tier: 'free', status: 'active', quota_analyses_limit: PLAN_QUOTA.free },
+          { onConflict: 'user_id', ignoreDuplicates: true }
+        );
       if (subError) {
-        console.error(`Failed to insert subscriptions row for ${id}:`, subError);
+        await logEvent('error', 'clerk.subscription_insert_failed', { userId: id, detail: { code: subError.code } });
         return new Response('Database error inserting subscription', { status: 500 });
       }
 
+      await logEvent('info', 'account.created', { userId: id });
       return new Response('OK', { status: 200 });
     }
 
@@ -112,7 +117,7 @@ export async function POST(req: Request) {
         .update({ email, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) {
-        console.error(`Failed to update users row for ${id}:`, error);
+        await logEvent('error', 'clerk.user_update_failed', { userId: id, detail: { code: error.code } });
         return new Response('Database error updating user', { status: 500 });
       }
 
@@ -126,11 +131,31 @@ export async function POST(req: Request) {
         return new Response('Missing user id', { status: 400 });
       }
 
+      // Stop billing before the records go: a deleted account must not keep
+      // being charged. If Stripe is unreachable, fail so Clerk retries.
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('stripe_subscription_id')
+        .eq('user_id', id)
+        .maybeSingle();
+      if (sub?.stripe_subscription_id) {
+        try {
+          await getStripe().subscriptions.cancel(sub.stripe_subscription_id);
+          await logEvent('info', 'billing.canceled_on_account_delete', { userId: id });
+        } catch (err) {
+          const code = (err as { code?: string }).code;
+          if (code !== 'resource_missing') {
+            await logEvent('error', 'billing.cancel_on_delete_failed', { userId: id, error: err });
+            return new Response('Could not cancel subscription', { status: 500 });
+          }
+        }
+      }
+
       // subscriptions (and anything else FK'd to users.id) cascades via the
       // existing foreign keys — no manual child-row cleanup here.
       const { error } = await supabase.from('users').delete().eq('id', id);
       if (error) {
-        console.error(`Failed to delete users row for ${id}:`, error);
+        await logEvent('error', 'clerk.user_delete_failed', { userId: id, detail: { code: error.code } });
         return new Response('Database error deleting user', { status: 500 });
       }
 

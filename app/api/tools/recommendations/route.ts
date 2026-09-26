@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
@@ -5,6 +6,10 @@ import { generateToolRecommendations } from '@/lib/anthropic';
 import { TOOL_INFO } from '@/lib/tool-suite';
 import { digestReport, digestScript } from '@/lib/digest';
 import type { AuditReportRow, ScriptRow, ToolRecommendation } from '@/lib/types';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
+
+const REGENERATE_COOLDOWN_MS = 60 * 1000;
 
 const STARTER_RECOMMENDATIONS: ToolRecommendation[] = [
   {
@@ -55,6 +60,24 @@ export async function GET() {
   }
 
   const digest = [...reportRows.map(digestReport), ...scriptRows.map(digestScript)].join('\n');
+  const digestHash = createHash('sha256').update(digest).digest('hex');
+
+  // Reuse the last answer while the user's reports and scripts are
+  // unchanged. This route is free (no quota), so without the cache every
+  // page view would be a paid Claude call.
+  const { data: cached } = await admin
+    .from('tool_recommendation_cache')
+    .select('digest_hash, recommendations, created_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (cached && cached.digest_hash === digestHash) {
+    return NextResponse.json({ recommendations: cached.recommendations, personalized: true, cached: true }, { status: 200 });
+  }
+  // Even when the inputs changed, regenerate at most once a minute.
+  if (cached && Date.now() - new Date(cached.created_at).getTime() < REGENERATE_COOLDOWN_MS) {
+    return NextResponse.json({ recommendations: cached.recommendations, personalized: true, cached: true }, { status: 200 });
+  }
 
   try {
     const raw = await generateToolRecommendations(digest);
@@ -68,12 +91,26 @@ export async function GET() {
       source: r.source,
     }));
 
-    return NextResponse.json({ recommendations, personalized: true }, { status: 200 });
+    const { error: cacheError } = await admin
+      .from('tool_recommendation_cache')
+      .upsert(
+        { user_id: userId, digest_hash: digestHash, recommendations, created_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    if (cacheError) {
+      await logEvent('warn', 'tools.recommendations_cache_write_failed', { userId, detail: { code: cacheError.code } });
+    }
+
+    return NextResponse.json({ recommendations, personalized: true, cached: false }, { status: 200 });
   } catch (err) {
-    console.error('tools/recommendations failed', err);
+    await logEvent('error', 'tools.recommendations_failed', { userId, error: err });
+    if (cached) {
+      // Better a slightly stale answer than an error page.
+      return NextResponse.json({ recommendations: cached.recommendations, personalized: true, cached: true }, { status: 200 });
+    }
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Could not generate recommendations.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Could not generate recommendations right now. Please try again shortly.') },
+      { status: errorStatus(err) }
     );
   }
 }

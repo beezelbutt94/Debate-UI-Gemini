@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, TriangleAlert, UserSearch } from 'lucide-react';
+import { Loader2, UserSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AuditReportRow, GrowthBlueprint } from '@/lib/types';
 
 type DeepDiveReport = AuditReportRow<GrowthBlueprint>;
@@ -97,19 +98,14 @@ export function DeepDiveForm() {
         </Button>
       </form>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {report && <BlueprintCard report={report} />}
     </div>
   );
 }
 
-function BlueprintCard({ report }: { report: DeepDiveReport }) {
+export function BlueprintCard({ report }: { report: DeepDiveReport }) {
   const blueprint = report.analysis;
 
   return (

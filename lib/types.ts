@@ -13,10 +13,12 @@ export interface SubscriptionRow {
   user_id: string;
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
-  plan_tier: 'creator' | 'pro' | 'studio';
+  plan_tier: 'free' | 'creator' | 'pro' | 'studio';
   status: string;
   quota_analyses_used: number;
   quota_analyses_limit: number;
+  quota_period_start: string;
+  cancel_at_period_end: boolean;
   current_period_end: string | null;
 }
 
@@ -192,8 +194,10 @@ export interface ScheduledPostRow {
   publish_at: string;
   media_urls: string[];
   caption: string | null;
-  status: 'draft' | 'scheduled' | 'published' | 'failed';
+  status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
   publish_error: string | null;
+  external_post_id: string | null;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 }

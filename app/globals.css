@@ -2,10 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * The product is designed dark: every page uses light text on neutral-900/950
+ * surfaces. Following the OS light scheme made headings near-invisible on a
+ * light background, so the theme is fixed to dark.
+ */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-50;
+  @apply bg-neutral-950 text-neutral-50 antialiased;
 }

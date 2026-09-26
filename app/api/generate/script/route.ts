@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import { retrieveCreatorVoice, recordScriptStyle } from '@/lib/mem0';
 import { generateScript } from '@/lib/anthropic';
 import type { Platform, ScriptRow } from '@/lib/types';
@@ -42,19 +45,8 @@ export async function POST(request: Request) {
 
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'script');
+  if (quotaDenied) return quotaDenied;
 
   try {
     // Ensure a creators_profiles row (and a stable Mem0 scope key) exists
@@ -121,7 +113,7 @@ export async function POST(request: Request) {
 
     if (insertError || !script) {
       console.error('scripts insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'script');
       return NextResponse.json({ error: 'Could not save the generated script.' }, { status: 500 });
     }
 
@@ -133,11 +125,11 @@ export async function POST(request: Request) {
       { status: 200 }
     );
   } catch (err) {
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
-    console.error('generate/script failed', err);
+    await refundQuota(admin, userId, 'script');
+    await logEvent('error', 'script.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Script generation failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Script generation failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

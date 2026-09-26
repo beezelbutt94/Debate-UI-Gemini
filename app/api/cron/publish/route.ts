@@ -4,6 +4,14 @@ import { publishToYouTube } from '@/lib/publish/youtube';
 import { publishToTikTok } from '@/lib/publish/tiktok';
 import { publishToFacebook } from '@/lib/publish/facebook';
 import type { Platform, ScheduledPostRow } from '@/lib/types';
+import { logEvent } from '@/lib/events';
+import { UserFacingError } from '@/lib/errors';
+import { isOwnedMediaUrl } from '@/lib/media';
+
+// Posts stuck in 'publishing' longer than this are treated as interrupted.
+const STALE_PUBLISHING_MS = 15 * 60 * 1000;
+// Keeps one run inside maxDuration even when many posts fall due together.
+const MAX_POSTS_PER_RUN = 10;
 
 // Video uploads can take a while to stream through; give this route more
 // than the default serverless timeout. Vercel Hobby caps this at 60s
@@ -44,41 +52,92 @@ async function handle(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
+
+  // A run that died mid-publish (timeout, deploy) leaves posts in
+  // 'publishing'. Retrying automatically could post the video twice, so
+  // mark them failed with an explanation and let the owner decide.
+  const staleBefore = new Date(Date.now() - STALE_PUBLISHING_MS).toISOString();
+  const { error: staleError } = await admin
+    .from('scheduled_posts')
+    .update({
+      status: 'failed',
+      publish_error: 'Publishing was interrupted. Check the platform before scheduling this post again.',
+    })
+    .eq('status', 'publishing')
+    .lt('updated_at', staleBefore);
+  if (staleError) {
+    await logEvent('error', 'cron.publish_stale_reset_failed', { detail: { code: staleError.code } });
+  }
+
   const { data: due, error } = await admin
     .from('scheduled_posts')
-    .select('*')
+    .select('id')
     .eq('status', 'scheduled')
-    .lte('publish_at', new Date().toISOString());
+    .lte('publish_at', new Date().toISOString())
+    .order('publish_at', { ascending: true })
+    .limit(MAX_POSTS_PER_RUN);
 
   if (error) {
-    console.error('cron publish: could not load due posts', error);
+    await logEvent('error', 'cron.publish_load_failed', { detail: { code: error.code } });
     return NextResponse.json({ error: 'Could not load due posts.' }, { status: 500 });
   }
 
   const results: { id: string; ok: boolean; detail: string }[] = [];
 
-  for (const post of (due ?? []) as ScheduledPostRow[]) {
+  for (const { id } of due ?? []) {
+    // Claim the post atomically. If another run (or the owner editing it)
+    // got there first, the status guard matches nothing and we skip it.
+    const { data: claimed } = await admin
+      .from('scheduled_posts')
+      .update({ status: 'publishing' })
+      .eq('id', id)
+      .eq('status', 'scheduled')
+      .select('*')
+      .maybeSingle();
+    if (!claimed) continue;
+    const post = claimed as ScheduledPostRow;
+
     try {
       if (post.media_urls.length === 0) {
-        throw new Error('No media attached to this scheduled post.');
+        throw new UserFacingError('No video is attached to this post.');
+      }
+      // Re-check at publish time: only the owner's own uploads may be
+      // fetched, whatever was stored.
+      if (!post.media_urls.every((u) => isOwnedMediaUrl(u, process.env.CLOUDINARY_CLOUD_NAME ?? '', post.user_id))) {
+        throw new UserFacingError('The attached media is not one of your uploads. Attach the video again.');
       }
       const publisher = PUBLISHERS[post.platform];
       const { externalPostId } = await publisher(post.user_id, post);
 
-      await admin
+      const { error: saveError } = await admin
         .from('scheduled_posts')
-        .update({ status: 'published', publish_error: null })
+        .update({
+          status: 'published',
+          publish_error: null,
+          external_post_id: externalPostId,
+          published_at: new Date().toISOString(),
+        })
         .eq('id', post.id);
+      if (saveError) {
+        await logEvent('error', 'cron.publish_record_failed', {
+          userId: post.user_id,
+          detail: { postId: post.id, code: saveError.code },
+        });
+      }
 
+      await logEvent('info', 'cron.published', { userId: post.user_id, detail: { postId: post.id, platform: post.platform } });
       results.push({ id: post.id, ok: true, detail: externalPostId });
     } catch (err) {
-      const message = (err as Error).message;
-      console.error(`cron publish: post ${post.id} failed`, message);
+      // The owner sees this on their calendar. Platform error text is about
+      // their own account and helps them fix it; tokens never appear in it.
+      const message = (err instanceof Error ? err.message : 'Publishing failed.').slice(0, 500);
+      await logEvent('error', 'cron.publish_failed', {
+        userId: post.user_id,
+        detail: { postId: post.id, platform: post.platform },
+        error: err,
+      });
 
-      await admin
-        .from('scheduled_posts')
-        .update({ status: 'failed', publish_error: message })
-        .eq('id', post.id);
+      await admin.from('scheduled_posts').update({ status: 'failed', publish_error: message }).eq('id', post.id);
 
       results.push({ id: post.id, ok: false, detail: message });
     }

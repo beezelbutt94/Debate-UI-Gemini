@@ -8,6 +8,7 @@ import {
   codeChallengeFromVerifier,
   codeVerifierCookieName,
 } from '@/lib/oauth/state';
+import { logEvent } from '@/lib/events';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
@@ -32,7 +33,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
     codeChallenge = codeChallengeFromVerifier(codeVerifier);
   }
 
-  const authorizationUrl = provider.authorizationUrl({ state, redirectUri, codeChallenge });
+  let authorizationUrl: string;
+  try {
+    authorizationUrl = provider.authorizationUrl({ state, redirectUri, codeChallenge });
+  } catch (err) {
+    // Almost always a missing client id/secret for this platform.
+    await logEvent('error', 'oauth.start_failed', { userId, detail: { platform }, error: err });
+    return NextResponse.redirect(new URL(`/dashboard/settings/connections?oauth=not_configured&platform=${platform}`, req.url));
+  }
 
   const res = NextResponse.redirect(authorizationUrl);
   const cookieOpts = {

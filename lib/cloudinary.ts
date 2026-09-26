@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { ConfigurationError } from '@/lib/errors';
 
 function config() {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -6,7 +7,7 @@ function config() {
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
   if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error('CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must all be set.');
+    throw new ConfigurationError('CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET');
   }
 
   return { cloudName, apiKey, apiSecret };

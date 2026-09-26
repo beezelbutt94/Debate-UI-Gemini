@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import {
   fetchVideoResource,
   buildFrameUrl,
@@ -90,19 +93,8 @@ export async function POST(request: Request) {
 
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'analyze_upload');
+  if (quotaDenied) return quotaDenied;
 
   try {
     // Trust Cloudinary's own record of the asset, not whatever the
@@ -157,17 +149,17 @@ export async function POST(request: Request) {
 
     if (insertError || !report) {
       console.error('audit_reports insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'analyze_upload');
       return NextResponse.json({ error: 'Could not save the diagnostic report.' }, { status: 500 });
     }
 
     return NextResponse.json({ report: report as AuditReportRow<UploadDiagnosis> }, { status: 200 });
   } catch (err) {
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
-    console.error('analyze/upload failed', err);
+    await refundQuota(admin, userId, 'analyze_upload');
+    await logEvent('error', 'analyze_upload.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Diagnostic failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Diagnostic failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

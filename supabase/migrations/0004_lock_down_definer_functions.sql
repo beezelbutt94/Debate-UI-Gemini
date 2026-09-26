@@ -24,21 +24,36 @@
 --    by default. Without this, the next migration reintroduces the hole.
 alter default privileges in schema public revoke execute on functions from anon, authenticated;
 
--- 2. Server-only: these read and write Vault-encrypted OAuth credentials and
---    must be reachable solely by the service role (the OAuth callback route
---    and the distribution gateway, both server-side).
-revoke all on function public.get_platform_refresh_token(uuid, text) from public, anon, authenticated;
-grant execute on function public.get_platform_refresh_token(uuid, text) to service_role;
+-- 2-4. These functions predate this repo's migrations: they were created in
+--    the live database by an earlier version of the app and no migration here
+--    creates them. Guard each block on the function existing so a fresh
+--    project (`supabase db push`) applies cleanly instead of failing on a
+--    missing function, while an existing database still gets locked down.
+do $$
+begin
+  -- Server-only: these read and write Vault-encrypted OAuth credentials and
+  -- must be reachable solely by the service role.
+  if to_regprocedure('public.get_platform_refresh_token(uuid, text)') is not null then
+    revoke all on function public.get_platform_refresh_token(uuid, text) from public, anon, authenticated;
+    grant execute on function public.get_platform_refresh_token(uuid, text) to service_role;
+  end if;
 
-revoke all on function public.store_platform_refresh_token(uuid, text, text, text, text) from public, anon, authenticated;
-grant execute on function public.store_platform_refresh_token(uuid, text, text, text, text) to service_role;
+  if to_regprocedure('public.store_platform_refresh_token(uuid, text, text, text, text)') is not null then
+    revoke all on function public.store_platform_refresh_token(uuid, text, text, text, text) from public, anon, authenticated;
+    grant execute on function public.store_platform_refresh_token(uuid, text, text, text, text) to service_role;
+  end if;
 
--- 3. A trigger function. Nothing should ever call it over the REST API.
-revoke all on function public.handle_new_user() from public, anon, authenticated;
+  -- A trigger function. Nothing should ever call it over the REST API.
+  if to_regprocedure('public.handle_new_user()') is not null then
+    revoke all on function public.handle_new_user() from public, anon, authenticated;
+  end if;
 
--- 4. consume_credits is *meant* to be called by a signed-in user (it derives
---    the caller from auth.uid()), so `authenticated` keeps EXECUTE. But anon
---    has no auth.uid(), so for anon the call can only ever raise -- there is
---    no reason to leave the entry point exposed.
-revoke all on function public.consume_credits(bigint, text, text) from public, anon;
-grant execute on function public.consume_credits(bigint, text, text) to authenticated;
+  -- consume_credits is meant to be called by a signed-in user (it derives
+  -- the caller from auth.uid()), so `authenticated` keeps EXECUTE; anon has
+  -- no auth.uid(), so there is no reason to leave it exposed.
+  if to_regprocedure('public.consume_credits(bigint, text, text)') is not null then
+    revoke all on function public.consume_credits(bigint, text, text) from public, anon;
+    grant execute on function public.consume_credits(bigint, text, text) to authenticated;
+  end if;
+end;
+$$;

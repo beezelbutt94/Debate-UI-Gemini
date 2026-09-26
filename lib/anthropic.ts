@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ConfigurationError } from '@/lib/errors';
 import type {
   ViralGapAnalysis,
   TimelineRecommendation,
@@ -17,7 +18,7 @@ let cached: Anthropic | null = null;
 
 function getAnthropic(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured.');
+    throw new ConfigurationError('ANTHROPIC_API_KEY');
   }
   if (!cached) {
     cached = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

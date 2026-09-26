@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import { extractUrlContent, TavilyRateLimitError } from '@/lib/tavily';
 import { generateViralGapAnalysis } from '@/lib/anthropic';
 import { detectPlatform } from '@/lib/platform';
@@ -34,19 +37,8 @@ export async function POST(request: Request) {
 
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'analyze_url');
+  if (quotaDenied) return quotaDenied;
 
   try {
     const extracted = await extractUrlContent(url);
@@ -74,7 +66,7 @@ export async function POST(request: Request) {
 
     if (insertError || !report) {
       console.error('audit_reports insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'analyze_url');
       return NextResponse.json({ error: 'Could not save the analysis report.' }, { status: 500 });
     }
 
@@ -83,7 +75,7 @@ export async function POST(request: Request) {
     // Every failure path below burned a quota unit for nothing (a
     // scrape/LLM error, not a user error) -- refund it rather than
     // silently costing the user one of their monthly analyses.
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+    await refundQuota(admin, userId, 'analyze_url');
 
     if (err instanceof TavilyRateLimitError) {
       return NextResponse.json(
@@ -95,10 +87,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error('analyze/url failed', err);
+    await logEvent('error', 'analyze_url.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Analysis failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Analysis failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

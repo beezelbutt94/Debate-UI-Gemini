@@ -148,8 +148,9 @@ const isPublicRoute = createRouteMatcher([
   '/api/cron/(.*)',
 ]);
 
-// Everything else under /dashboard or /api requires a signed-in user.
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/api/(.*)']);
+// Everything else under /dashboard, /admin or /api requires a signed-in user.
+// (/admin additionally checks the admin allowlist itself: app/admin/layout.tsx.)
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/admin(.*)', '/api/(.*)']);
 
 // @clerk/nextjs runs a "keyless" path in development (canUseKeyless is
 // isDevelopmentEnvironment()-gated). In that path, when no publishable key is

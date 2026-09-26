@@ -1,17 +1,5 @@
-import Link from 'next/link';
-import { UserButton } from '@clerk/nextjs';
-
-const NAV_ITEMS = [
-  { href: '/dashboard/analyze', label: 'Viral Gap Analyzer' },
-  { href: '/dashboard/deep-dive', label: 'Account Deep-Dive' },
-  { href: '/dashboard/upload', label: 'Upload Diagnostic' },
-  { href: '/dashboard/script', label: 'Script Generator' },
-  { href: '/dashboard/tools', label: 'Tool Suite Hub' },
-  { href: '/dashboard/competitors', label: 'Competitor Espionage' },
-  { href: '/dashboard/discover', label: 'Web Discovery' },
-  { href: '/dashboard/schedule', label: 'Schedule' },
-  { href: '/dashboard/settings/connections', label: 'Connections' },
-];
+import { isAdmin } from '@/lib/admin-access';
+import { NavMenu } from '@/components/NavMenu';
 
 /**
  * Explicitly imported by each Viral Trending dashboard page rather than
@@ -19,25 +7,12 @@ const NAV_ITEMS = [
  * wrap the separate, pre-existing platform-scaffold pages under
  * app/dashboard/* (trends, settings/domain, renders/[id]) — this keeps
  * Viral Trending's nav from leaking onto that unrelated, unbuilt scaffold.
+ *
+ * The admin link is decided here, on the server; the /admin routes enforce
+ * the same check themselves, so hiding the link is convenience, not
+ * protection.
  */
-export function DashboardNav() {
-  return (
-    <nav className="flex items-center justify-between mb-2">
-      <div className="flex items-center gap-6">
-        <Link href="/" className="text-sm font-black text-neutral-100">
-          Viral Trending
-        </Link>
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="text-xs font-mono text-neutral-400 hover:text-amber-400 transition-colors"
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
-      <UserButton />
-    </nav>
-  );
+export async function DashboardNav() {
+  const admin = await isAdmin();
+  return <NavMenu isAdmin={admin} />;
 }
