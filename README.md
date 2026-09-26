@@ -313,8 +313,8 @@ What's real and live:
   YouTube's resumable upload, TikTok's Content Posting API Direct Post,
   Facebook's 3-phase Reels upload.
 - `app/api/cron/publish/route.ts` + `vercel.json` — the trigger itself,
-  bearer-secret-protected and trigger-agnostic (works with Vercel Cron or
-  any external scheduler hitting the same URL).
+  bearer-secret-protected and trigger-agnostic (Vercel Cron runs it daily;
+  `.github/workflows/publish-cron.yml` runs it every 15 minutes).
 - `app/dashboard/settings/connections` — connect/disconnect UI, each
   platform's real review/audit caveat shown inline.
 
@@ -401,9 +401,11 @@ product ago.
    set `CRON_SECRET`. Every connect button fails informatively rather than
    silently until its own app is registered, so this can be done
    incrementally, platform by platform. On Vercel, also set the project's
-   `CRON_SECRET` env var to the same value so `vercel.json`'s cron job can
-   call `/api/cron/publish` — note its Hobby-plan minimum interval is
-   once/day regardless of the `*/15 * * * *` schedule configured there.
+   `CRON_SECRET` env var to the same value so `vercel.json`'s daily cron
+   job can call `/api/cron/publish` (daily because the Hobby plan rejects
+   anything more frequent). For the 15-minute cadence, add the
+   `PUBLISH_CRON_URL` and `CRON_SECRET` repository secrets that
+   `.github/workflows/publish-cron.yml` uses.
 8. `npm run dev`
 
 ## Database schema
@@ -460,9 +462,10 @@ before assuming a similar function is safe to expose more broadly — and
    `docs/DEBUG_RUN.md` for what was broken about `lint` before this pass).
 8. If publishing is wanted, register the OAuth apps in `.env.example`'s
    "OAuth connections + publish trigger" section, set `CRON_SECRET` as a
-   Vercel project env var, and confirm the project is on a plan whose
-   cron minimum interval matches `vercel.json`'s `*/15 * * * *` (Hobby is
-   once/day). Register each redirect URI
+   Vercel project env var, and set the `PUBLISH_CRON_URL`/`CRON_SECRET`
+   repository secrets so `.github/workflows/publish-cron.yml` triggers
+   publishing every 15 minutes (`vercel.json` only runs it once a day,
+   the Hobby-plan limit). Register each redirect URI
    (`{NEXT_PUBLIC_APP_URL}/api/oauth/{platform}/callback`) on the real
    deployed origin, not `localhost`.
 

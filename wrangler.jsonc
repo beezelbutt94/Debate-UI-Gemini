@@ -1,0 +1,16 @@
+// Cloudflare Workers Builds is connected to this repository as the worker
+// "debate-ui-gemini". The app itself is deployed to Vercel/Railway/k8s (see
+// README), so this worker is only a redirect to that deployment. Having this
+// file also stops Workers Builds from trying to auto-configure the Next.js
+// app, which fails on this repo.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "debate-ui-gemini",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-01",
+  "vars": {
+    // Set to the primary deployment's origin, e.g. "https://app.example.com",
+    // here or as a variable on the worker in the Cloudflare dashboard.
+    "APP_ORIGIN": ""
+  }
+}

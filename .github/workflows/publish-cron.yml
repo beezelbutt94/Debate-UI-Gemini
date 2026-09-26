@@ -1,0 +1,43 @@
+name: Publish scheduled posts
+
+# Vercel's Hobby plan rejects any cron more frequent than once a day, so
+# vercel.json only carries a daily safety-net run. This workflow supplies
+# the 15-minute cadence by calling the same trigger-agnostic endpoint.
+#
+# Setup (repository Settings -> Secrets and variables -> Actions):
+#   PUBLISH_CRON_URL  full URL, e.g. https://your-app.example/api/cron/publish
+#   CRON_SECRET       the same value as the deployment's CRON_SECRET env var
+# Until both are set every run skips with a notice instead of failing.
+# GitHub only runs scheduled workflows from the default branch.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cron
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Call /api/cron/publish
+        env:
+          PUBLISH_CRON_URL: ${{ secrets.PUBLISH_CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PUBLISH_CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::notice::PUBLISH_CRON_URL or CRON_SECRET is not set; skipping."
+            exit 0
+          fi
+          # The route's maxDuration is 300s, so allow a little more than that.
+          curl --silent --show-error --fail-with-body --max-time 320 \
+            --request POST \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$PUBLISH_CRON_URL"
