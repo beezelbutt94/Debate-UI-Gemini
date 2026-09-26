@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { logEvent } from '@/lib/events';
 import { getStripe } from '@/lib/stripe';
 import { PLAN_QUOTA } from '@/lib/plans';
+import { ConfigurationError } from '@/lib/errors';
 
 interface ClerkEmailAddress {
   id: string;
@@ -35,7 +36,7 @@ function getPrimaryEmail(data: ClerkUserData): string | null {
 async function verifyClerkWebhook(req: Request): Promise<ClerkWebhookEvent> {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    throw new Error('CLERK_WEBHOOK_SECRET is not configured.');
+    throw new ConfigurationError('CLERK_WEBHOOK_SECRET');
   }
 
   const headerPayload = await headers();
@@ -62,6 +63,12 @@ export async function POST(req: Request) {
   try {
     event = await verifyClerkWebhook(req);
   } catch (err) {
+    // A missing secret is our misconfiguration, not a forged request: log it
+    // as an error and answer 500 so Clerk keeps retrying until it is set.
+    if (err instanceof ConfigurationError) {
+      await logEvent('error', 'clerk.webhook_not_configured', { error: err });
+      return new Response('Webhook not configured', { status: 500 });
+    }
     await logEvent('warn', 'clerk.webhook_bad_signature', { error: err });
     return new Response('Invalid signature', { status: 400 });
   }

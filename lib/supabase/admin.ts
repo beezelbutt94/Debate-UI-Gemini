@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { ConfigurationError } from '@/lib/errors';
 
 /**
  * Next.js memoizes identical GET fetches within one server render pass
@@ -19,9 +20,11 @@ const liveFetch: typeof fetch = (input, init) =>
  * Never expose SUPABASE_SERVICE_ROLE_KEY to the client bundle.
  */
 export function createSupabaseAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false }, global: { fetch: liveFetch } }
-  );
+  // supabase-js only says "supabaseKey is required"; name the missing setting
+  // so the logs (and the 503 API responses) point straight at the fix.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url) throw new ConfigurationError('NEXT_PUBLIC_SUPABASE_URL');
+  if (!key) throw new ConfigurationError('SUPABASE_SERVICE_ROLE_KEY');
+  return createClient(url, key, { auth: { persistSession: false }, global: { fetch: liveFetch } });
 }
