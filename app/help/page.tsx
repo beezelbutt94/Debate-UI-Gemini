@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SignedIn, SignedOut } from '@clerk/nextjs';
 import { PLAN_QUOTA } from '@/lib/plans';
 
 export const metadata: Metadata = { title: 'Help' };
@@ -71,9 +72,18 @@ export default function HelpPage() {
           <Link href="/" className="inline-flex items-center min-h-[40px] font-black text-sm">
             Viral Trending
           </Link>
-          <Link href="/dashboard" className="inline-flex items-center min-h-[40px] px-2 text-amber-400 hover:text-amber-300">
-            Dashboard
-          </Link>
+          {/* Signed-out visitors get Sign in: prefetching /dashboard for them follows
+              Clerk's cross-origin sign-in redirect, which the browser blocks (CORS). */}
+          <SignedIn>
+            <Link href="/dashboard" className="inline-flex items-center min-h-[40px] px-2 text-amber-400 hover:text-amber-300">
+              Dashboard
+            </Link>
+          </SignedIn>
+          <SignedOut>
+            <Link href="/sign-in" className="inline-flex items-center min-h-[40px] px-2 text-amber-400 hover:text-amber-300">
+              Sign in
+            </Link>
+          </SignedOut>
         </nav>
         <header className="border-b border-neutral-800 pb-6">
           <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest">Help</span>

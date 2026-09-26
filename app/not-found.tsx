@@ -12,6 +12,7 @@ export default function NotFound() {
         <div className="flex justify-center gap-2">
           <Link
             href="/dashboard"
+            prefetch={false}
             className="inline-flex h-10 items-center rounded-lg bg-amber-500 px-4 text-sm font-bold text-neutral-950 hover:bg-amber-400"
           >
             Go to dashboard

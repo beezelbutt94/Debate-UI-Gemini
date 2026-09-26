@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
 import { ArrowRight, Sparkles, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { buttonClassName } from '@/components/ui/button';
 import { getPlanPrices, type PlanPrice } from '@/lib/billing';
 import { PAID_PLANS, PLAN_INFO, PLAN_QUOTA, type PlanTier } from '@/lib/plans';
 
@@ -64,17 +64,19 @@ export default async function Home() {
 
           <div className="flex flex-col items-center gap-3">
             <SignedIn>
-              <Link href="/dashboard">
-                <Button size="lg" className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold">
-                  Go to your dashboard <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
+              <Link
+                href="/dashboard"
+                className={buttonClassName({ size: 'lg', className: 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold' })}
+              >
+                Go to your dashboard <ArrowRight className="w-4 h-4 ml-1" aria-hidden />
               </Link>
             </SignedIn>
             <SignedOut>
-              <Link href="/sign-up">
-                <Button size="lg" className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold">
-                  Analyze your first video free <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
+              <Link
+                href="/sign-up"
+                className={buttonClassName({ size: 'lg', className: 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold' })}
+              >
+                Analyze your first video free <ArrowRight className="w-4 h-4 ml-1" aria-hidden />
               </Link>
               <Link href="/sign-in" className="text-xs text-neutral-500 hover:text-neutral-300">
                 Already have an account? Sign in

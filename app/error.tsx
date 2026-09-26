@@ -26,7 +26,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
           <Button onClick={reset} className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold">
             Try again
           </Button>
-          <Link href="/dashboard" className="inline-flex h-10 items-center rounded-lg border border-neutral-800 px-4 text-sm hover:bg-neutral-900">
+          <Link href="/dashboard" prefetch={false} className="inline-flex h-10 items-center rounded-lg border border-neutral-800 px-4 text-sm hover:bg-neutral-900">
             Go to dashboard
           </Link>
         </div>
