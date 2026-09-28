@@ -4,7 +4,7 @@
 apiVersion: k6.io/v1alpha1
 kind: TestRun
 metadata:
-  name: viralvision-peak-benchmark
+  name: viral-trending-peak-benchmark
   namespace: load-testing
 spec:
   parallelism: 4
@@ -23,9 +23,9 @@ spec:
         memory: 512Mi
     env:
       - name: TARGET_URL
-        value: "https://api.viralvision.io"
+        value: "https://api.viraltrending.online"
       - name: WS_TARGET_URL
-        value: "wss://collab.viralvision.io"
+        value: "wss://collab.viraltrending.online"
       - name: API_KEY
         valueFrom:
           secretKeyRef:

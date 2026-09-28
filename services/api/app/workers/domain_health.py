@@ -17,7 +17,7 @@ from app.core.models import Workspace
 from app.core.telemetry import DOMAIN_DNS_STATUS, DOMAIN_PROBE_ERRORS, DOMAIN_SSL_EXPIRY_DAYS
 from app.workers.celery_app import celery_app
 
-PLATFORM_CNAME_TARGET = os.getenv("PLATFORM_CNAME_TARGET", "cname.viralvision.io")
+PLATFORM_CNAME_TARGET = os.getenv("PLATFORM_CNAME_TARGET", "cname.viraltrending.online")
 
 
 def verify_cname_target(hostname: str) -> bool:

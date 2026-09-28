@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getOAuthProvider, isOAuthPlatform } from '@/lib/oauth';
 import { stateCookieName, codeVerifierCookieName } from '@/lib/oauth/state';
+import { logEvent } from '@/lib/events';
+import { ensureAccount } from '@/lib/account';
 
 const CONNECTIONS_PATH = '/dashboard/settings/connections';
 
@@ -39,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   try {
     result = await provider.exchangeCode({ code, redirectUri, codeVerifier });
   } catch (err) {
-    console.error(`${platform} OAuth exchange failed:`, (err as Error).message);
+    await logEvent('error', 'oauth.exchange_failed', { userId, detail: { platform }, error: err });
     return clearCookiesAndRedirect(req, platform, 'exchange_failed');
   }
 
@@ -48,6 +50,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   // Vault-backed store_platform_connection() function, which is
   // deliberately restricted to service_role (0002_platform_connections.sql).
   const admin = createSupabaseAdminClient();
+  // platform_connections.user_id references users(id).
+  await ensureAccount(userId);
   const { error } = await admin.rpc('store_platform_connection', {
     p_user_id: userId,
     p_platform: platform,
@@ -60,10 +64,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   });
 
   if (error) {
-    console.error(`${platform} connection store failed:`, error);
+    await logEvent('error', 'oauth.store_failed', { userId, detail: { platform, code: error.code } });
     return clearCookiesAndRedirect(req, platform, 'store_failed');
   }
 
+  await logEvent('info', 'oauth.connected', { userId, detail: { platform } });
   return clearCookiesAndRedirect(req, platform, 'connected');
 }
 

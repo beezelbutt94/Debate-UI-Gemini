@@ -18,7 +18,7 @@ target_metadata = Base.metadata
 
 
 def get_database_url() -> str:
-    return os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/viralvision")
+    return os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/viral_trending")
 
 
 def run_migrations_offline() -> None:

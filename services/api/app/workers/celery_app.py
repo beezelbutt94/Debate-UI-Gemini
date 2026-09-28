@@ -11,9 +11,9 @@ from kombu import Exchange, Queue
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-celery_app = Celery("viralvision_workers", broker=REDIS_URL, backend=REDIS_URL)
+celery_app = Celery("viral_trending_workers", broker=REDIS_URL, backend=REDIS_URL)
 
-_default_exchange = Exchange("viralvision_exchange", type="direct")
+_default_exchange = Exchange("viral_trending_exchange", type="direct")
 
 celery_app.conf.update(
     task_serializer="json",
@@ -50,7 +50,7 @@ celery_app.conf.update(
         Queue("draft_preview", _default_exchange, routing_key="render.draft", queue_arguments={"x-max-priority": 1}),
     ),
     task_default_queue="standard_jobs",
-    task_default_exchange="viralvision_exchange",
+    task_default_exchange="viral_trending_exchange",
     task_default_routing_key="render.standard",
 )
 

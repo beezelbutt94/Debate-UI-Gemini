@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Link2, TriangleAlert } from 'lucide-react';
+import { Loader2, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AuditReportRow, ViralGapAnalysis } from '@/lib/types';
 
 type AnalyzerReport = AuditReportRow<ViralGapAnalysis>;
@@ -63,19 +64,14 @@ export function AnalyzerForm({ onAnalyzed }: { onAnalyzed?: (report: AnalyzerRep
         </Button>
       </form>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {report && <AnalysisReportCard report={report} />}
     </div>
   );
 }
 
-function AnalysisReportCard({ report }: { report: AnalyzerReport }) {
+export function AnalysisReportCard({ report }: { report: AnalyzerReport }) {
   const { analysis } = report;
 
   return (

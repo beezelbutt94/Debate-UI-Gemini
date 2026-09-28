@@ -28,7 +28,7 @@ data:
             { "title": "Active Container Images", "value": "{{ range .app.status.summary.images }}- `{{ . }}`\n{{ end }}", "short": false },
             { "title": "Commit Message", "value": "{{ (call .repo.GetCommitMetadata .app.status.sync.revision).Message }}", "short": false }
           ],
-          "footer": "ViralVision GitOps Pipeline",
+          "footer": "Viral Trending GitOps Pipeline",
           "ts": {{.app.status.operationState.finishedAt.Unix}}
         }]
     webhook:
@@ -45,7 +45,7 @@ data:
                 { "name": "Author", "value": "{{ (call .repo.GetCommitMetadata .app.status.sync.revision).Author }}", "inline": true },
                 { "name": "Active Images", "value": "{{ range .app.status.summary.images }}- `{{ . }}`\n{{ end }}" }
               ],
-              "footer": { "text": "ViralVision GitOps Pipeline" }
+              "footer": { "text": "Viral Trending GitOps Pipeline" }
             }]
           }
 
@@ -63,7 +63,7 @@ data:
             { "title": "Health Status", "value": "{{.app.status.health.status}}", "short": true },
             { "title": "Error Summary", "value": "```{{.app.status.operationState.message}}```", "short": false }
           ],
-          "footer": "ViralVision GitOps Pipeline"
+          "footer": "Viral Trending GitOps Pipeline"
         }]
     webhook:
       discord:
@@ -91,7 +91,7 @@ data:
           "title": "{{.app.metadata.name}} cluster health degraded",
           "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
           "text": "One or more resources in `production` entered a degraded state.",
-          "footer": "ViralVision Cluster Sentinel"
+          "footer": "Viral Trending Cluster Sentinel"
         }]
     webhook:
       discord:

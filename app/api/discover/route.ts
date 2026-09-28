@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import { searchTopics, TavilyRateLimitError, type TavilySearchResult } from '@/lib/tavily';
 import { generateSiteDiscovery } from '@/lib/anthropic';
 import type { AuditReportRow, SiteDiscoveryResult } from '@/lib/types';
@@ -58,19 +61,8 @@ export async function POST(request: Request) {
 
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'discover');
+  if (quotaDenied) return quotaDenied;
 
   try {
     const rawResults = await searchTopics(query, SEARCH_MAX_RESULTS);
@@ -121,13 +113,13 @@ export async function POST(request: Request) {
 
     if (insertError || !report) {
       console.error('audit_reports insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'discover');
       return NextResponse.json({ error: 'Could not save the discovery report.' }, { status: 500 });
     }
 
     return NextResponse.json({ report: report as AuditReportRow<SiteDiscoveryResult> }, { status: 200 });
   } catch (err) {
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+    await refundQuota(admin, userId, 'discover');
 
     if (err instanceof TavilyRateLimitError) {
       return NextResponse.json(
@@ -139,10 +131,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error('discover failed', err);
+    await logEvent('error', 'discover.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Web discovery failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Web discovery failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

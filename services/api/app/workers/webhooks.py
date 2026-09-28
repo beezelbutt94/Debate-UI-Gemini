@@ -91,7 +91,7 @@ def dispatch_webhooks(db: Session, user_id: str, event: str, data: dict) -> None
         signature = generate_signature(sub.secret_key, encoded)
         headers = {
             "Content-Type": "application/json",
-            "X-ViralVision-Event": event,
+            "X-Viral-Trending-Event": event,
             "X-Signature-256": signature,
         }
         try:
@@ -110,7 +110,7 @@ def deliver_with_retries(target_url: str, secret: str, event: str, data: dict) -
     encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
-        "X-ViralVision-Event": event,
+        "X-Viral-Trending-Event": event,
         "X-Signature-256": generate_signature(secret, encoded),
     }
 

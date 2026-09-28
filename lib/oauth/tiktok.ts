@@ -13,7 +13,7 @@ const PUBLISH_SCOPE = 'video.publish';
  * Until this app's client passes TikTok's content audit, everything it
  * publishes is forced to private/self-only visibility regardless of the
  * privacy_level requested -- see lib/publish/tiktok.ts and
- * docs/VIRALENGINE_ROADMAP.md.
+ * docs/VIRAL_TRENDING_ROADMAP.md.
  */
 export const tiktokProvider: OAuthProvider = {
   requiresPkce: false,

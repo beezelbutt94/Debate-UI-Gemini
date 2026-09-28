@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isOAuthPlatform } from '@/lib/oauth';
 import type { PlatformConnectionSummary } from '@/lib/types';
+import { logEvent } from '@/lib/events';
 
 export async function GET() {
   const { userId } = await auth();
@@ -19,8 +20,8 @@ export async function GET() {
     .eq('user_id', userId);
 
   if (error) {
-    console.error('connections list failed', error);
-    return NextResponse.json({ error: 'Could not load connections.' }, { status: 500 });
+    await logEvent('error', 'connections.list_failed', { userId, detail: { code: error.code } });
+    return NextResponse.json({ error: 'Could not load your connections. Please refresh.' }, { status: 500 });
   }
 
   const connections: PlatformConnectionSummary[] = (data ?? []).map((row) => ({
@@ -52,8 +53,8 @@ export async function DELETE(request: Request) {
   });
 
   if (error) {
-    console.error('connection disconnect failed', error);
-    return NextResponse.json({ error: 'Could not disconnect.' }, { status: 500 });
+    await logEvent('error', 'connections.disconnect_failed', { userId, detail: { platform, code: error.code } });
+    return NextResponse.json({ error: 'Could not disconnect. Please try again.' }, { status: 500 });
   }
 
   return NextResponse.json({ disconnected: true }, { status: 200 });

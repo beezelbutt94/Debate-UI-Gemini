@@ -3,7 +3,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: viralvision-domain-alerts
+  name: viral-trending-domain-alerts
   namespace: production
   labels:
     role: alert-rules
@@ -13,7 +13,7 @@ spec:
     - name: custom.domains.rules
       rules:
         - alert: CustomDomainCNAMEDisconnected
-          expr: viralvision_custom_domain_dns_valid == 0
+          expr: viral_trending_custom_domain_dns_valid == 0
           for: 2h
           labels:
             severity: warning
@@ -24,7 +24,7 @@ spec:
             description: "Domain '{{ $labels.domain }}' for workspace {{ $labels.workspace_id }} no longer points at the platform edge."
 
         - alert: CustomDomainSSLExpiryWarning
-          expr: viralvision_custom_domain_ssl_expiry_days > 0 and viralvision_custom_domain_ssl_expiry_days <= 15
+          expr: viral_trending_custom_domain_ssl_expiry_days > 0 and viral_trending_custom_domain_ssl_expiry_days <= 15
           for: 6h
           labels:
             severity: warning
@@ -35,7 +35,7 @@ spec:
             description: "Certificate for '{{ $labels.domain }}' expires in {{ $value | printf \"%.1f\" }} days."
 
         - alert: CustomDomainSSLExpiryCritical
-          expr: viralvision_custom_domain_ssl_expiry_days > 0 and viralvision_custom_domain_ssl_expiry_days <= 3
+          expr: viral_trending_custom_domain_ssl_expiry_days > 0 and viral_trending_custom_domain_ssl_expiry_days <= 3
           for: 1h
           labels:
             severity: critical

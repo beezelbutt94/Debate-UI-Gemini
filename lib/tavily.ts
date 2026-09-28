@@ -1,3 +1,5 @@
+import { ConfigurationError, UserFacingError } from '@/lib/errors';
+
 const TAVILY_EXTRACT_URL = 'https://api.tavily.com/extract';
 const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
 
@@ -32,7 +34,7 @@ export class TavilyRateLimitError extends Error {
  */
 export async function extractUrlContent(url: string): Promise<TavilyExtractResult> {
   if (!process.env.TAVILY_API_KEY) {
-    throw new Error('TAVILY_API_KEY is not configured.');
+    throw new ConfigurationError('TAVILY_API_KEY');
   }
 
   const controller = new AbortController();
@@ -71,7 +73,7 @@ export async function extractUrlContent(url: string): Promise<TavilyExtractResul
 
   if (data.results.length === 0) {
     const reason = data.failed_results[0]?.error ?? 'no content returned';
-    throw new Error(`Tavily could not extract this URL: ${reason}`);
+    throw new UserFacingError(`We couldn't read that video page: ${reason}`, 422);
   }
 
   return data.results[0];
@@ -98,7 +100,7 @@ export interface TavilySearchResponse {
  */
 export async function searchTopics(query: string, maxResults = 8): Promise<TavilySearchResult[]> {
   if (!process.env.TAVILY_API_KEY) {
-    throw new Error('TAVILY_API_KEY is not configured.');
+    throw new ConfigurationError('TAVILY_API_KEY');
   }
 
   const controller = new AbortController();

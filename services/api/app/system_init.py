@@ -12,7 +12,7 @@ logger = logging.getLogger("system_init")
 
 
 def initialize_runtime() -> None:
-    logger.info("Initializing ViralVision platform service runtime...")
+    logger.info("Initializing Viral Trending platform service runtime...")
 
     try:
         with engine.connect():

@@ -65,7 +65,7 @@ def create_stripe_topup_checkout(pack_size: int = 100, current_user: User = Depe
                 "price_data": {
                     "currency": "usd",
                     "product_data": {
-                        "name": f"ViralVision {pack_size} Render Credits",
+                        "name": f"Viral Trending {pack_size} Render Credits",
                         "description": "Non-expiring AI video generation and GPU transcode tokens",
                     },
                     "unit_amount": pack_size * 15,  # $0.15 / credit baseline

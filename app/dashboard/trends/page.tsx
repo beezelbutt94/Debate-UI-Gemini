@@ -55,7 +55,7 @@ export default function TrendDetectionDashboard() {
   }, [filterType]);
 
   return (
-    <div className="max-w-6xl mx-auto p-8 text-neutral-100 min-h-screen space-y-8">
+    <div className="max-w-6xl mx-auto px-4 py-6 sm:p-8 text-neutral-100 min-h-screen space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800 pb-6">
         <div>
           <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest flex items-center gap-1">

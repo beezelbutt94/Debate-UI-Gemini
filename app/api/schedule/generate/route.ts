@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { consumeQuotaOrRespond, refundQuota } from '@/lib/quota';
+import { logEvent } from '@/lib/events';
+import { errorStatus, publicErrorMessage } from '@/lib/errors';
 import { searchTopics, TavilyRateLimitError } from '@/lib/tavily';
 import { generateWeeklyCalendar } from '@/lib/anthropic';
 import { digestReport } from '@/lib/digest';
@@ -21,7 +24,7 @@ const DAY_INDEX: Record<CalendarSlot['day_of_week'], number> = {
  * (today counts if the time hasn't passed yet). No per-user timezone is
  * stored in this schema yet, so this resolves against the server's own
  * clock (UTC in a typical deployment) -- a real limitation, not hidden:
- * see docs/VIRALENGINE_ROADMAP.md.
+ * see docs/VIRAL_TRENDING_ROADMAP.md.
  */
 function nextOccurrence(dayOfWeek: CalendarSlot['day_of_week'], timeLocal: string): Date {
   const [hours, minutes] = timeLocal.split(':').map(Number);
@@ -51,19 +54,8 @@ export async function POST() {
 
   const admin = createSupabaseAdminClient();
 
-  const { data: quotaOk, error: quotaError } = await admin.rpc('consume_analysis_quota', {
-    p_user_id: userId,
-  });
-  if (quotaError) {
-    console.error('consume_analysis_quota failed', quotaError);
-    return NextResponse.json({ error: 'Could not check your analysis quota.' }, { status: 500 });
-  }
-  if (!quotaOk) {
-    return NextResponse.json(
-      { error: 'Monthly analysis quota exceeded. Upgrade your plan for more analyses.' },
-      { status: 402 }
-    );
-  }
+  const quotaDenied = await consumeQuotaOrRespond(admin, userId, 'schedule_generate');
+  if (quotaDenied) return quotaDenied;
 
   try {
     let searchDigest = '(no search results)';
@@ -71,7 +63,9 @@ export async function POST() {
       const results = await searchTopics('best time to post TikTok YouTube Shorts Instagram Reels 2026 engagement data');
       searchDigest = results.map((r) => `"${r.title}": ${r.content.slice(0, 300)}`).join('\n');
     } catch (searchErr) {
-      searchDigest = `(search unavailable: ${searchErr instanceof Error ? searchErr.message : 'unknown error'})`;
+      // Search is supplementary context: carry on without it, but record why.
+      await logEvent('warn', 'schedule_generate.search_unavailable', { userId, error: searchErr });
+      searchDigest = '(web search unavailable for this run)';
     }
 
     const { data: ownReports } = await admin
@@ -100,13 +94,13 @@ export async function POST() {
 
     if (insertError || !inserted) {
       console.error('schedule/generate insert failed', insertError);
-      await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+      await refundQuota(admin, userId, 'schedule_generate');
       return NextResponse.json({ error: 'Could not save the generated calendar.' }, { status: 500 });
     }
 
     return NextResponse.json({ posts: inserted as ScheduledPostRow[] }, { status: 200 });
   } catch (err) {
-    await admin.rpc('refund_analysis_quota', { p_user_id: userId });
+    await refundQuota(admin, userId, 'schedule_generate');
 
     if (err instanceof TavilyRateLimitError) {
       return NextResponse.json(
@@ -118,10 +112,10 @@ export async function POST() {
       );
     }
 
-    console.error('schedule/generate failed', err);
+    await logEvent('error', 'schedule_generate.failed', { userId, error: err });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Calendar generation failed.' },
-      { status: 502 }
+      { error: publicErrorMessage(err, 'Calendar generation failed. It did not count against your plan; please try again.') },
+      { status: errorStatus(err) }
     );
   }
 }

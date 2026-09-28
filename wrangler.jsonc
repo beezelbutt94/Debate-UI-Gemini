@@ -1,0 +1,16 @@
+// Cloudflare Workers Builds deploys this repository as its own worker,
+// "viral-trending". The app itself runs on Vercel at www.viraltrending.online
+// (see README), so this worker only redirects to that deployment. Having this
+// file also stops Workers Builds from trying to auto-configure the Next.js
+// app, which fails on this repo. The worker name must match the Cloudflare
+// project connected to this repo, or Workers Builds rejects the build.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "viral-trending",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-01",
+  "vars": {
+    // The primary deployment's origin; requests keep their path and query.
+    "APP_ORIGIN": "https://www.viraltrending.online"
+  }
+}

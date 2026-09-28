@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, TriangleAlert, Sparkles, BrainCircuit } from 'lucide-react';
+import { Loader2, Sparkles, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Platform, ScriptRow } from '@/lib/types';
 
 const PLATFORMS: { value: Platform; label: string }[] = [
@@ -101,20 +102,15 @@ export function ScriptGeneratorForm() {
         </Button>
       </form>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
-      {result && <StoryboardCard result={result} />}
+      {result && <StoryboardCard script={result.script} memoryRecorded={result.memory.recorded} />}
     </div>
   );
 }
 
-function StoryboardCard({ result }: { result: GenerateResponse }) {
-  const { storyboard, title } = result.script;
+export function StoryboardCard({ script, memoryRecorded = true }: { script: ScriptRow; memoryRecorded?: boolean }) {
+  const { storyboard, title } = script;
 
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-6 space-y-6">
@@ -163,7 +159,7 @@ function StoryboardCard({ result }: { result: GenerateResponse }) {
         <p className="text-sm text-white font-semibold mt-1">{storyboard.cta}</p>
       </div>
 
-      {!result.memory.recorded && (
+      {!memoryRecorded && (
         <p className="text-[11px] text-neutral-500 font-mono">
           Note: this script&apos;s style could not be recorded to your creator-voice memory for next time.
         </p>

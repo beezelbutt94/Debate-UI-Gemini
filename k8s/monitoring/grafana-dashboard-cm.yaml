@@ -42,7 +42,7 @@ data:
           "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
           "id": 2,
           "targets": [
-            { "expr": "viralvision_gpu_vram_usage_percentage", "legendFormat": "{{device_id}} VRAM", "refId": "A" }
+            { "expr": "viral_trending_gpu_vram_usage_percentage", "legendFormat": "{{device_id}} VRAM", "refId": "A" }
           ],
           "title": "GPU Memory (VRAM) Utilization",
           "type": "gauge"
@@ -52,8 +52,8 @@ data:
           "gridPos": { "h": 8, "w": 16, "x": 8, "y": 1 },
           "id": 3,
           "targets": [
-            { "expr": "sum(viralvision_active_transcodes) by (tier)", "legendFormat": "Active ({{tier}})", "refId": "A" },
-            { "expr": "sum(rate(viralvision_render_failures_total[2m])) by (reason)", "legendFormat": "Failures: {{reason}}", "refId": "B" }
+            { "expr": "sum(viral_trending_active_transcodes) by (tier)", "legendFormat": "Active ({{tier}})", "refId": "A" },
+            { "expr": "sum(rate(viral_trending_render_failures_total[2m])) by (reason)", "legendFormat": "Failures: {{reason}}", "refId": "B" }
           ],
           "title": "Active Encoding Streams vs. Failures",
           "type": "timeseries"
@@ -71,8 +71,8 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
           "id": 5,
           "targets": [
-            { "expr": "histogram_quantile(0.95, sum(rate(viralvision_transcode_duration_seconds_bucket[5m])) by (le, tier))", "legendFormat": "p95 Duration ({{tier}})", "refId": "A" },
-            { "expr": "histogram_quantile(0.50, sum(rate(viralvision_transcode_duration_seconds_bucket[5m])) by (le, tier))", "legendFormat": "p50 Duration ({{tier}})", "refId": "B" }
+            { "expr": "histogram_quantile(0.95, sum(rate(viral_trending_transcode_duration_seconds_bucket[5m])) by (le, tier))", "legendFormat": "p95 Duration ({{tier}})", "refId": "A" },
+            { "expr": "histogram_quantile(0.50, sum(rate(viral_trending_transcode_duration_seconds_bucket[5m])) by (le, tier))", "legendFormat": "p50 Duration ({{tier}})", "refId": "B" }
           ],
           "title": "Transcode Execution Latency (p50 / p95)",
           "type": "timeseries"
@@ -93,9 +93,9 @@ data:
       "refresh": "10s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["viralvision", "gpu", "nvenc", "production"],
+      "tags": ["viral-trending", "gpu", "nvenc", "production"],
       "time": { "from": "now-1h", "to": "now" },
       "timezone": "browser",
-      "title": "ViralVision GPU Rendering Pipeline",
-      "uid": "viralvision-gpu-pipeline"
+      "title": "Viral Trending GPU Rendering Pipeline",
+      "uid": "viral-trending-gpu-pipeline"
     }

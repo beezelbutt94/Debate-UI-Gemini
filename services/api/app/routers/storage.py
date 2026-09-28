@@ -15,7 +15,7 @@ from app.core.models import User
 
 router = APIRouter(prefix="/api/v1/storage", tags=["Storage & Ingestion"])
 
-S3_BUCKET = os.getenv("S3_MEDIA_BUCKET", "viralvision-media-lake")
+S3_BUCKET = os.getenv("S3_MEDIA_BUCKET", "viral-trending-media-lake")
 S3_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 _s3_client = None

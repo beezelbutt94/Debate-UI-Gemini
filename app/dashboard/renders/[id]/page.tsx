@@ -163,7 +163,7 @@ export default function RenderStatusPage() {
   const isRendering = job?.status === 'queued' || job?.status === 'processing';
 
   return (
-    <div className="max-w-6xl mx-auto p-8 text-neutral-100 min-h-screen">
+    <div className="max-w-6xl mx-auto px-4 py-6 sm:p-8 text-neutral-100 min-h-screen">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-4 mb-8">
         <div>
           <span className="text-[10px] font-mono uppercase tracking-widest text-amber-500">

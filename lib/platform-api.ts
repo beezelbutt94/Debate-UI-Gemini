@@ -1,5 +1,5 @@
 /**
- * Client helper for the ViralVision platform service (`services/api`).
+ * Client helper for the Viral Trending platform service (`services/api`).
  *
  * That service is a separate FastAPI app that is not running by default.
  * Requests reach it only when `INTERNAL_API_URL` is set, which turns on the

@@ -4,14 +4,14 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: viralvision-api-monitor
+  name: viral-trending-api-monitor
   namespace: production
   labels:
     release: prometheus-stack
 spec:
   selector:
     matchLabels:
-      app: viralvision-api
+      app: viral-trending-api
   endpoints:
     - port: http
       path: /metrics
@@ -21,14 +21,14 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: viralvision-worker-monitor
+  name: viral-trending-worker-monitor
   namespace: production
   labels:
     release: prometheus-stack
 spec:
   selector:
     matchLabels:
-      app: viralvision-video-worker
+      app: viral-trending-video-worker
   podMetricsEndpoints:
     - port: telemetry
       path: /metrics

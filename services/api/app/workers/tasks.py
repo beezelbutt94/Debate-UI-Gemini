@@ -18,7 +18,7 @@ from app.pipeline.video_pipeline import BrandOverlayOptions, VideoProcessingPipe
 from app.workers.celery_app import celery_app
 from app.workers.webhooks import dispatch_webhooks
 
-WORKSPACE_ROOT = os.getenv("RENDER_WORKSPACE_ROOT", "/tmp/viralvision_production")
+WORKSPACE_ROOT = os.getenv("RENDER_WORKSPACE_ROOT", "/tmp/viral_trending_production")
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=10)
@@ -54,7 +54,7 @@ def process_video_task(self, video_id: str) -> Dict[str, Any]:
         start = time.time()
         with TrackTranscodeLatency(tier=video.quality_tier):
             pipeline.execute_sync(
-                input_video=video.source_url or "/var/viralvision/assets/fallback.mp4",
+                input_video=video.source_url or "/var/viral-trending/assets/fallback.mp4",
                 output_video=output_path,
                 tier=video.quality_tier,
                 brand=brand_opts,
@@ -62,7 +62,7 @@ def process_video_task(self, video_id: str) -> Dict[str, Any]:
         duration = round(time.time() - start, 2)
 
         video.status = "completed"
-        video.output_url = f"https://storage.viralvision.io/renders/{video_id}.mp4"
+        video.output_url = f"https://storage.viraltrending.online/renders/{video_id}.mp4"
         video.render_time_seconds = duration
         db.commit()
 

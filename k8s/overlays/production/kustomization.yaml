@@ -11,24 +11,24 @@ resources:
 
 # Rewritten by argocd-image-updater on each new GHCR release.
 images:
-  - name: ghcr.io/viralvision/api
-    newName: ghcr.io/viralvision/api
+  - name: ghcr.io/viral-trending/api
+    newName: ghcr.io/viral-trending/api
     newTag: 0.1.0
-  - name: ghcr.io/viralvision/web
-    newName: ghcr.io/viralvision/web
+  - name: ghcr.io/viral-trending/web
+    newName: ghcr.io/viral-trending/web
     newTag: 0.1.0
-  - name: ghcr.io/viralvision/worker
-    newName: ghcr.io/viralvision/worker
+  - name: ghcr.io/viral-trending/worker
+    newName: ghcr.io/viral-trending/worker
     newTag: 0.1.0
 
 patches:
   - path: patches/worker-gpu.yaml
     target:
       kind: Deployment
-      name: viralvision-video-worker
+      name: viral-trending-video-worker
 
 configMapGenerator:
-  - name: viralvision-production-config
+  - name: viral-trending-production-config
     literals:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO

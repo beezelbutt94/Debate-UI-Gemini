@@ -80,7 +80,7 @@ def test_webhook_delivery(payload: WebhookTestPayload):
         target_url=str(payload.targetUrl),
         secret=payload.secret,
         event="system.ping",
-        data={"message": "ViralVision webhook pipeline verified"},
+        data={"message": "Viral Trending webhook pipeline verified"},
     )
     if not delivered:
         raise HTTPException(status_code=502, detail="Webhook delivery failed after retries")

@@ -17,6 +17,8 @@ dist
 
 # Other services build from their own Dockerfiles / contexts.
 services/collab/node_modules
+# Self-contained project with its own Dockerfiles; see polsia/README.md.
+polsia
 __pycache__
 *.pyc
 .venv

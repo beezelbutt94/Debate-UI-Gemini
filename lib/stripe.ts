@@ -1,4 +1,6 @@
 import Stripe from 'stripe';
+import { ConfigurationError } from '@/lib/errors';
+import type { PaidPlanTier } from '@/lib/plans';
 
 let cached: Stripe | null = null;
 
@@ -10,35 +12,46 @@ let cached: Stripe | null = null;
  */
 export function getStripe(): Stripe {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured.');
+    throw new ConfigurationError('STRIPE_SECRET_KEY');
   }
   if (!cached) {
-    cached = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
+    // STRIPE_API_BASE points the SDK at stripe-mock for local testing
+    // (e.g. http://localhost:12111). Leave it unset in every deployment.
+    const base = process.env.STRIPE_API_BASE ? new URL(process.env.STRIPE_API_BASE) : null;
+    cached = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-02-24.acacia',
+      ...(base && {
+        host: base.hostname,
+        port: base.port ? Number(base.port) : undefined,
+        protocol: base.protocol === 'http:' ? 'http' : 'https',
+      }),
+    });
   }
   return cached;
 }
 
-export type PlanTier = 'creator' | 'pro' | 'studio';
+export { PLAN_QUOTA, type PlanTier, type PaidPlanTier } from '@/lib/plans';
 
-export const PLAN_QUOTA: Record<PlanTier, number> = {
-  creator: 10,
-  pro: 50,
-  studio: 200,
-};
+/**
+ * Stripe price ids for the paid plans, from the environment. Read on each
+ * call rather than at import so a changed env var is picked up without a
+ * rebuild in environments that inject variables at runtime.
+ */
+export function planPriceIds(): Record<PaidPlanTier, string> {
+  return {
+    creator: process.env.STRIPE_PRICE_CREATOR ?? '',
+    pro: process.env.STRIPE_PRICE_PRO ?? '',
+    studio: process.env.STRIPE_PRICE_STUDIO ?? '',
+  };
+}
 
-// Real Stripe test-mode price IDs, created via the Stripe MCP server under
-// the "Peshets sandbox" account (acct_1UFaOJGZbTaqS7W8). Populate the env
-// vars from .env.example with these (or your own account's equivalents)
-// before wiring up checkout in a different Stripe account.
-export const PLAN_PRICE_IDS: Record<PlanTier, string> = {
-  creator: process.env.STRIPE_PRICE_CREATOR ?? '',
-  pro: process.env.STRIPE_PRICE_PRO ?? '',
-  studio: process.env.STRIPE_PRICE_STUDIO ?? '',
-};
+export function priceIdFor(plan: PaidPlanTier): string {
+  const id = planPriceIds()[plan];
+  if (!id) throw new ConfigurationError(`STRIPE_PRICE_${plan.toUpperCase()}`);
+  return id;
+}
 
-export function planFromPriceId(priceId: string): PlanTier | null {
-  const entry = (Object.entries(PLAN_PRICE_IDS) as [PlanTier, string][]).find(
-    ([, id]) => id && id === priceId
-  );
+export function planFromPriceId(priceId: string): PaidPlanTier | null {
+  const entry = (Object.entries(planPriceIds()) as [PaidPlanTier, string][]).find(([, id]) => id && id === priceId);
   return entry ? entry[0] : null;
 }

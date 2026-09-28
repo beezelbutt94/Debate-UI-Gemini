@@ -22,7 +22,7 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    // Proxies the (still-unbuilt) ViralVision platform service's routes --
+    // Proxies the (still-unbuilt) Viral Trending platform service's routes --
     // see services/api/ -- so the /dashboard/* pages under app/dashboard
     // can call relative /api/v1/* paths instead of hardcoding a backend
     // origin. No-ops until INTERNAL_API_URL is actually set.

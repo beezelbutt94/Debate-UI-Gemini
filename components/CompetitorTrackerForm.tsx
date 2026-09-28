@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Plus, Trash2, TriangleAlert, Swords } from 'lucide-react';
+import { Loader2, Plus, Trash2, Swords } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AccountPlatform, AuditReportRow, CompetitorGapAnalysis, CompetitorHandle } from '@/lib/types';
 
 const PLATFORMS: { value: AccountPlatform; label: string }[] = [
@@ -127,19 +128,14 @@ export function CompetitorTrackerForm() {
         </div>
       </form>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {report && <GapAnalysisCard report={report} />}
     </div>
   );
 }
 
-function GapAnalysisCard({ report }: { report: AuditReportRow<CompetitorGapAnalysis> }) {
+export function GapAnalysisCard({ report }: { report: AuditReportRow<CompetitorGapAnalysis> }) {
   const a = report.analysis;
 
   return (

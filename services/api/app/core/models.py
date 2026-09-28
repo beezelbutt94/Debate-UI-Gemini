@@ -1,4 +1,4 @@
-"""Consolidated SQLAlchemy models for the ViralVision platform service.
+"""Consolidated SQLAlchemy models for the Viral Trending platform service.
 
 This merges the per-feature model definitions scattered across the design
 docs (workspaces/users, video pipeline, marketplace, analytics, A/B

@@ -193,7 +193,7 @@ The template composer is a UI flow; it cannot be driven from here. Steps:
    one — `${{secret(32)}}` produces a fresh value per deploy.
 
 5. **Rename it before publishing.** The project and its services are named
-   after this codebase, and "ViralVision Platform API" is not what anyone
+   after this codebase, and "Viral Trending Platform API" is not what anyone
    searches the marketplace for. The template's name and description are
    editable at publish time and are the whole listing -- they decide whether
    it gets deployed at all, which is the only thing kickbacks are a share
@@ -253,7 +253,7 @@ The code is the easy part and it is done. The rest:
   screenshot beats any amount of architecture prose.
 - **Name it for what it is**, not for this project — exact copy to paste is
   in step 5 above. "FastAPI + Celery + Postgres + Redis" is searched for;
-  "ViralEngine API" is not.
+  "Viral Trending API" is not.
 - **Answer the queue.** It is a 67% raise on every dollar the template earns
   (15% → 25%), and it is the only lever here that is fully in your control.
 - **Cheap to deploy wins.** Every GB of RAM you shave is a GB the deployer

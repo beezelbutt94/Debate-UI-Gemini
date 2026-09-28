@@ -4,7 +4,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: viralvision-gpu-alerts
+  name: viral-trending-gpu-alerts
   namespace: production
   labels:
     role: alert-rules
@@ -15,7 +15,7 @@ spec:
       rules:
         - alert: GPUVRAMSaturationWarning
           expr: |
-            viralvision_gpu_vram_usage_percentage > 85
+            viral_trending_gpu_vram_usage_percentage > 85
             or
             (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100) > 85
           for: 3m
@@ -29,7 +29,7 @@ spec:
 
         - alert: GPUVRAMCriticalSaturation
           expr: |
-            viralvision_gpu_vram_usage_percentage > 95
+            viral_trending_gpu_vram_usage_percentage > 95
             or
             (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100) > 95
           for: 1m
@@ -43,7 +43,7 @@ spec:
 
         - alert: TranscodeJobOOMKilled
           expr: |
-            increase(viralvision_render_failures_total{reason=~"(?i).*(out_of_memory|oom|cuda_error).*"}[2m]) > 0
+            increase(viral_trending_render_failures_total{reason=~"(?i).*(out_of_memory|oom|cuda_error).*"}[2m]) > 0
           labels:
             severity: critical
             service: video-worker

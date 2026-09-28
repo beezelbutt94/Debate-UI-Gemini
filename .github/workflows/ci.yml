@@ -38,6 +38,12 @@ jobs:
     - name: Typecheck
       run: npm run typecheck
 
+    - name: Lint
+      run: npm run lint
+
+    - name: Unit tests
+      run: npm test
+
     - name: Build
       # ClerkProvider reads NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY during static
       # prerendering (see .env.example), so `next build` hard-fails without

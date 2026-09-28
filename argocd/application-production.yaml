@@ -4,15 +4,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: viralvision-production
+  name: viral-trending-production
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd-image-updater.argoproj.io/image-list: |
-      api=ghcr.io/viralvision/api,
-      web=ghcr.io/viralvision/web,
-      worker=ghcr.io/viralvision/worker
+      api=ghcr.io/viral-trending/api,
+      web=ghcr.io/viral-trending/web,
+      worker=ghcr.io/viral-trending/worker
 
     argocd-image-updater.argoproj.io/api.update-strategy: semver
     argocd-image-updater.argoproj.io/api.allowed-versions: "^2.4"

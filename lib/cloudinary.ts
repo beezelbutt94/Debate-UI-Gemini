@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { ConfigurationError } from '@/lib/errors';
 
 function config() {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -6,7 +7,7 @@ function config() {
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
   if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error('CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must all be set.');
+    throw new ConfigurationError('CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET');
   }
 
   return { cloudName, apiKey, apiSecret };
@@ -63,7 +64,7 @@ export function createSignedVideoUpload(userId: string): SignedUpload {
   const { cloudName, apiKey, apiSecret } = config();
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const folder = `viralengine/uploads/${userId}`;
+  const folder = `viral-trending/uploads/${userId}`;
   const allowedFormats = 'mp4,mov';
 
   const signature = signParams({ allowed_formats: allowedFormats, folder, timestamp }, apiSecret);
@@ -120,7 +121,7 @@ export function buildWaveformUrl(cloudName: string, publicId: string): string {
 
 /**
  * Evenly spaced frame timestamps across the video, always including a
- * near-start frame (the 3-second-hook window the rest of ViralEngine's
+ * near-start frame (the 3-second-hook window the rest of Viral Trending's
  * scoring cares about) and capped at 6 frames to keep the vision call's
  * token cost bounded.
  */

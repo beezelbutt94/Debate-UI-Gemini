@@ -26,5 +26,5 @@ receivers:
             *Details:* {{ .Annotations.description }}
             ---
           {{ end }}
-          *Dashboard:* <https://grafana.viralvision.io/d/domain-health|Open Domain Health Monitor>
+          *Dashboard:* <https://grafana.viraltrending.online/d/domain-health|Open Domain Health Monitor>
         color: '{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}#EF4444{{ else }}#F59E0B{{ end }}{{ else }}#10B981{{ end }}'

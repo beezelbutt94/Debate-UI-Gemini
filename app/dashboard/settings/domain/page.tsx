@@ -192,7 +192,7 @@ export default function WorkspaceDomainSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-8 text-neutral-100 min-h-screen space-y-8">
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:p-8 text-neutral-100 min-h-screen space-y-8">
       <div>
         <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest flex items-center gap-1">
           <Globe className="w-3.5 h-3.5" /> White-Label Infrastructure

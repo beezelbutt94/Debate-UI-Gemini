@@ -3,7 +3,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: viralvision-db-migration
+  name: viral-trending-db-migration
   namespace: production
   annotations:
     argocd.argoproj.io/hook: PreSync
@@ -14,19 +14,19 @@ spec:
   template:
     metadata:
       labels:
-        app: viralvision-db-migration
+        app: viral-trending-db-migration
     spec:
       restartPolicy: Never
       containers:
         - name: alembic-migrator
-          image: ghcr.io/viralvision/api:latest
+          image: ghcr.io/viral-trending/api:latest
           imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - secretRef:
-                name: viralvision-production-secrets
+                name: viral-trending-production-secrets
             - configMapRef:
-                name: viralvision-production-config
+                name: viral-trending-production-config
           resources:
             limits:
               cpu: "1"

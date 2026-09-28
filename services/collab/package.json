@@ -1,5 +1,5 @@
 {
-  "name": "viralvision-collab-server",
+  "name": "viral-trending-collab-server",
   "private": true,
   "version": "0.1.0",
   "description": "Yjs WebSocket server for real-time collaborative video timeline editing.",

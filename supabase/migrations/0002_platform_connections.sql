@@ -1,4 +1,4 @@
--- Per-creator OAuth connections to the platforms ViralEngine can actually
+-- Per-creator OAuth connections to the platforms Viral Trending can actually
 -- publish to on a user's behalf: YouTube (videos.insert), TikTok (Content
 -- Posting API, Direct Post), Facebook Pages (Reels Publishing API), and
 -- Canva (Connect API, for a future Tool Suite Hub design-creation action).
@@ -6,7 +6,7 @@
 -- HeyGen/HyperFrames, Metricool) turned out to be account-linked/single-
 -- workspace API-key products with no genuine multi-tenant OAuth a deployed
 -- third party can use on behalf of arbitrary end users -- see
--- docs/VIRALENGINE_ROADMAP.md for the verified findings per service.
+-- docs/VIRAL_TRENDING_ROADMAP.md for the verified findings per service.
 --
 -- Access/refresh tokens never touch a plain column. They go into Supabase
 -- Vault (pgsodium-encrypted); this table only holds the resulting secret

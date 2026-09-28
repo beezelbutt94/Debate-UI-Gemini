@@ -115,7 +115,7 @@ def purchase_template(template_id: str, current_user: User = Depends(get_current
             "price_data": {
                 "currency": "usd",
                 "unit_amount": price_cents,
-                "product_data": {"name": template.title, "description": template.description or "ViralVision Video Template"},
+                "product_data": {"name": template.title, "description": template.description or "Viral Trending Video Template"},
             },
             "quantity": 1,
         }],

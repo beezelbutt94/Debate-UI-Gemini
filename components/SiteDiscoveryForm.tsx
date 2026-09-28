@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, TriangleAlert, Compass, Sparkles, ExternalLink } from 'lucide-react';
+import { Loader2, Compass, Sparkles, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AuditReportRow, SiteDiscoveryResult } from '@/lib/types';
 
 type DiscoveryReport = AuditReportRow<SiteDiscoveryResult>;
@@ -65,19 +66,14 @@ export function SiteDiscoveryForm() {
         </div>
       </form>
 
-      {error && (
-        <div className="flex items-start gap-2 p-4 rounded-xl border border-rose-900 bg-rose-950/40 text-rose-200 text-xs">
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} />}
 
       {report && <DiscoveryCard report={report} />}
     </div>
   );
 }
 
-function DiscoveryCard({ report }: { report: DiscoveryReport }) {
+export function DiscoveryCard({ report }: { report: DiscoveryReport }) {
   const a = report.analysis;
 
   return (

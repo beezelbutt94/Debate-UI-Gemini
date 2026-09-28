@@ -1,4 +1,4 @@
--- ViralEngine schema.
+-- Viral Trending schema.
 --
 -- Auth identity comes from Clerk via Supabase's native third-party auth
 -- integration: Clerk issues the session JWT, Supabase validates it against
