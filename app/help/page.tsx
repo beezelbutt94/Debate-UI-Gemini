@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
 import { PLAN_QUOTA } from '@/lib/plans';
+import { SiteFooter } from '@/components/SiteFooter';
 
 export const metadata: Metadata = { title: 'Help' };
 
@@ -119,6 +120,7 @@ export default function HelpPage() {
           )}
         </section>
       </div>
+      <SiteFooter />
     </div>
   );
 }

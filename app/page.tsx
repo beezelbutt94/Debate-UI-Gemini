@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
 import { ArrowRight, Sparkles, Check } from 'lucide-react';
 import { buttonClassName } from '@/components/ui/button';
+import { SiteFooter } from '@/components/SiteFooter';
 import { getPlanPrices, type PlanPrice } from '@/lib/billing';
 import { PAID_PLANS, PLAN_INFO, PLAN_QUOTA, type PlanTier } from '@/lib/plans';
 
@@ -125,11 +126,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-neutral-900 py-6 text-center text-xs text-neutral-600">
-        <Link href="/help" className="inline-flex items-center min-h-[40px] px-2 hover:text-neutral-300">
-          Help &amp; FAQ
-        </Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

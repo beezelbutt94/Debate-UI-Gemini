@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { ClerkProvider } from '@clerk/nextjs';
+import { adsenseClient } from '@/lib/site';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,10 +11,21 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const adsense = adsenseClient();
   return (
     <ClerkProvider>
       <html lang="en">
-        <body>{children}</body>
+        <body>
+          {children}
+          {adsense && (
+            <Script
+              async
+              src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsense}`}
+              crossOrigin="anonymous"
+              strategy="afterInteractive"
+            />
+          )}
+        </body>
       </html>
     </ClerkProvider>
   );

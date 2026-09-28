@@ -198,7 +198,10 @@ export const proxy = clerkMiddleware(async (auth, req) => {
 // tenant-routing matcher, which is still enforced inside applyTenantRouting.
 export const config = {
   matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // txt and xml keep ads.txt, robots.txt and sitemap.xml out of Clerk: with a
+    // development instance, Clerk answers crawler requests with a redirect to
+    // its handshake page, and those files must reach AdSense and search bots.
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|txt|xml|docx?|xlsx?|zip|webmanifest)).*)',
     '/(api|trpc)(.*)',
     // Not redundant with the first entry: that one deliberately skips anything
     // ending in a static-asset extension, and Clerk's Frontend API proxy
