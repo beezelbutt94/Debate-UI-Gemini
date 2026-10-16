@@ -46,6 +46,24 @@ jobs:
           name: Type check
           command: npm run typecheck
 
+  unit-test:
+    docker:
+      - image: cimg/node:22.19
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: TypeScript unit tests (Vitest)
+          command: npm test
+
+      - run:
+          name: Python unit tests (pytest)
+          command: |
+            pip install requests pytest pytest-mock --quiet
+            python3 -m pytest tests/unit/python/ -v
+
   build:
     docker:
       - image: cimg/node:22.19
@@ -98,6 +116,9 @@ workflows:
     jobs:
       - install
       - lint-and-typecheck:
+          requires:
+            - install
+      - unit-test:
           requires:
             - install
       - build:
