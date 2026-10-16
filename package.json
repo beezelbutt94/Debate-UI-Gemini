@@ -19,7 +19,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.451.0",
     "mem0ai": "^3.1.8",
-    "next": "^16.3.5",
+    "next": "^16.4.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^17.2.1",
