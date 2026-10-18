@@ -7,8 +7,11 @@ import type { AccountPlatform, Platform } from '@/lib/types';
  */
 export function detectPlatform(rawUrl: string): Platform | null {
   let host: string;
+  let pathname: string;
   try {
-    host = new URL(rawUrl).hostname.replace(/^www\./, '');
+    const parsed = new URL(rawUrl);
+    host = parsed.hostname.replace(/^www\./, '');
+    pathname = parsed.pathname;
   } catch {
     return null;
   }
@@ -18,7 +21,7 @@ export function detectPlatform(rawUrl: string): Platform | null {
   }
 
   if (
-    (host === 'youtube.com' || host.endsWith('.youtube.com')) && rawUrl.includes('/shorts/')
+    (host === 'youtube.com' || host.endsWith('.youtube.com')) && pathname.includes('/shorts/')
   ) {
     return 'youtube_shorts';
   }
@@ -28,7 +31,7 @@ export function detectPlatform(rawUrl: string): Platform | null {
 
   if (
     (host === 'facebook.com' || host.endsWith('.facebook.com') || host === 'fb.watch') &&
-    (rawUrl.includes('/reel/') || host === 'fb.watch')
+    (pathname.includes('/reel/') || host === 'fb.watch')
   ) {
     return 'facebook_reels';
   }
