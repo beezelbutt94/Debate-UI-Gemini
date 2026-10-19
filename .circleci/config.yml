@@ -46,6 +46,32 @@ jobs:
           name: Type check
           command: npm run typecheck
 
+  test-ts:
+    docker:
+      - image: cimg/node:22.19
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Run TypeScript unit tests
+          command: npm test
+
+  test-python:
+    docker:
+      - image: cimg/python:3.13
+    steps:
+      - checkout
+
+      - run:
+          name: Install Python test dependencies
+          command: pip install pytest pytest-mock fastapi pydantic redis starlette
+
+      - run:
+          name: Run Python unit tests
+          command: python -m pytest services/api/tests/ -v
+
   build:
     docker:
       - image: cimg/node:22.19
@@ -100,6 +126,10 @@ workflows:
       - lint-and-typecheck:
           requires:
             - install
+      - test-ts:
+          requires:
+            - install
+      - test-python
       - build:
           requires:
             - install
