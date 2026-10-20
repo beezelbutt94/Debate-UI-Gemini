@@ -31,7 +31,7 @@ def get_anthropic_client() -> AsyncAnthropic:
 def extract_json_block(raw: str) -> str:
     """Strips a ```json fence if the model wrapped its reply in one."""
     text = raw.strip()
-    if text.startswith("```"):
+    if "```" in text:
         text = text.split("```")[1]
         if text.startswith("json"):
             text = text[4:]
