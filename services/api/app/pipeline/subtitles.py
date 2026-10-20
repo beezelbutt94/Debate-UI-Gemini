@@ -33,10 +33,12 @@ class KineticSubtitleGenerator:
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        centis = int(round((seconds - int(seconds)) * 100))
+        total_centis = round(seconds * 100)
+        centis = total_centis % 100
+        total_secs = total_centis // 100
+        hours = total_secs // 3600
+        minutes = (total_secs % 3600) // 60
+        secs = total_secs % 60
         return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
     def build_ass_subtitles(
