@@ -46,6 +46,18 @@ jobs:
           name: Type check
           command: npm run typecheck
 
+  test:
+    docker:
+      - image: cimg/node:22.19
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Unit tests
+          command: node_modules/.bin/vitest run --reporter=verbose
+
   build:
     docker:
       - image: cimg/node:22.19
@@ -98,6 +110,9 @@ workflows:
     jobs:
       - install
       - lint-and-typecheck:
+          requires:
+            - install
+      - test:
           requires:
             - install
       - build:
