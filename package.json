@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --import ./tests/unit/alias-loader.mjs --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
