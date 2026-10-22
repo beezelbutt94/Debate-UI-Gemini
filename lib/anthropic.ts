@@ -137,7 +137,7 @@ export async function generateViralGapAnalysis(params: {
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
     tools: [ANALYSIS_TOOL],
@@ -278,7 +278,7 @@ export async function generateGrowthBlueprint(params: {
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     system: BLUEPRINT_SYSTEM_PROMPT,
     tools: [BLUEPRINT_TOOL],
@@ -456,7 +456,7 @@ export async function generateUploadDiagnosis(params: {
   }
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     system: UPLOAD_SYSTEM_PROMPT,
     tools: [UPLOAD_TOOL],
@@ -580,7 +580,7 @@ export async function generateScript(params: {
       : 'Creator voice/tone memories: (none found)');
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 4096,
     system: buildScriptSystemPrompt(hasMemory),
     tools: [SCRIPT_TOOL],
@@ -685,7 +685,7 @@ export async function generateToolRecommendations(digest: string): Promise<RawTo
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     system: RECOMMENDATIONS_SYSTEM_PROMPT,
     tools: [RECOMMENDATIONS_TOOL],
@@ -763,7 +763,7 @@ export async function generateCompetitorGapAnalysis(params: {
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 3072,
     system: COMPETITOR_SYSTEM_PROMPT,
     tools: [COMPETITOR_TOOL],
@@ -848,7 +848,7 @@ export async function generateWeeklyCalendar(params: {
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     system: CALENDAR_SYSTEM_PROMPT,
     tools: [CALENDAR_TOOL],
@@ -950,7 +950,7 @@ export async function generateSiteDiscovery(params: {
   const anthropic = getAnthropic();
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 3072,
     system: DISCOVERY_SYSTEM_PROMPT,
     tools: [DISCOVERY_TOOL],
