@@ -93,11 +93,34 @@ jobs:
           paths:
             - .next/cache
 
+  unit-test:
+    docker:
+      - image: cimg/node:22.19
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Install Python test dependencies
+          command: pip3 install pytest fastapi pydantic redis "anthropic==1.6.0" sqlalchemy
+
+      - run:
+          name: TypeScript unit tests (vitest)
+          command: node_modules/.bin/vitest run --config vitest.config.ts
+
+      - run:
+          name: Python unit tests (pytest)
+          command: python3 -m pytest tests/unit/services/ -v
+
 workflows:
   ci:
     jobs:
       - install
       - lint-and-typecheck:
+          requires:
+            - install
+      - unit-test:
           requires:
             - install
       - build:
