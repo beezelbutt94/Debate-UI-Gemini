@@ -79,7 +79,7 @@ async function youtubeGet<T>(path: string, params: Record<string, string>): Prom
  * Strips a leading "@" or a full channel/handle URL down to the bare
  * handle YouTube's API expects for the `forHandle` parameter.
  */
-function normalizeHandle(rawHandle: string): string {
+export function normalizeHandle(rawHandle: string): string {
   const trimmed = rawHandle.trim();
   const fromUrl = trimmed.match(/youtube\.com\/(@[\w.-]+)/i);
   const handle = fromUrl ? fromUrl[1] : trimmed;
@@ -158,7 +158,7 @@ export async function fetchYoutubeChannelSnapshot(rawHandle: string): Promise<Yo
   };
 }
 
-function computeAvgDaysBetween(publishedAtDates: string[]): number | null {
+export function computeAvgDaysBetween(publishedAtDates: string[]): number | null {
   if (publishedAtDates.length < 2) return null;
 
   const sorted = [...publishedAtDates]
