@@ -1,0 +1,189 @@
+import { describe, it, expect } from 'vitest';
+import {
+  generateState,
+  stateCookieName,
+  generateCodeVerifier,
+  codeChallengeFromVerifier,
+  codeVerifierCookieName,
+} from '@/lib/oauth/state';
+import { createHash } from 'crypto';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateState()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('generateState()', () => {
+  it('returns a non-empty string', () => {
+    expect(generateState()).toBeTruthy();
+    expect(typeof generateState()).toBe('string');
+  });
+
+  it('returns a base64url string (no +, /, = characters)', () => {
+    const state = generateState();
+    expect(state).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('generates 24 bytes → 32 base64url characters', () => {
+    // 24 bytes = 32 base64url characters (no padding)
+    expect(generateState()).toHaveLength(32);
+  });
+
+  it('generates unique values on each call', () => {
+    const a = generateState();
+    const b = generateState();
+    expect(a).not.toBe(b);
+  });
+
+  it('generates 100 unique values without collision', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      seen.add(generateState());
+    }
+    expect(seen.size).toBe(100);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// stateCookieName()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('stateCookieName()', () => {
+  it('returns oauth_state_youtube for youtube', () => {
+    expect(stateCookieName('youtube')).toBe('oauth_state_youtube');
+  });
+
+  it('returns oauth_state_tiktok for tiktok', () => {
+    expect(stateCookieName('tiktok')).toBe('oauth_state_tiktok');
+  });
+
+  it('returns oauth_state_facebook for facebook', () => {
+    expect(stateCookieName('facebook')).toBe('oauth_state_facebook');
+  });
+
+  it('returns oauth_state_canva for canva', () => {
+    expect(stateCookieName('canva')).toBe('oauth_state_canva');
+  });
+
+  it('prefixes any string with oauth_state_', () => {
+    expect(stateCookieName('custom_platform')).toBe('oauth_state_custom_platform');
+  });
+
+  it('returns a string beginning with oauth_state_', () => {
+    expect(stateCookieName('x')).toMatch(/^oauth_state_/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateCodeVerifier()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('generateCodeVerifier()', () => {
+  it('returns a non-empty string', () => {
+    expect(generateCodeVerifier()).toBeTruthy();
+    expect(typeof generateCodeVerifier()).toBe('string');
+  });
+
+  it('returns a base64url string (no +, /, = characters)', () => {
+    const verifier = generateCodeVerifier();
+    expect(verifier).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('generates 32 bytes → 43 base64url characters', () => {
+    // 32 bytes: ceil(32 * 4/3) = 43 base64url chars (no padding)
+    expect(generateCodeVerifier()).toHaveLength(43);
+  });
+
+  it('generates unique values on each call', () => {
+    const a = generateCodeVerifier();
+    const b = generateCodeVerifier();
+    expect(a).not.toBe(b);
+  });
+
+  it('generates 100 unique values without collision', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      seen.add(generateCodeVerifier());
+    }
+    expect(seen.size).toBe(100);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// codeChallengeFromVerifier()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('codeChallengeFromVerifier()', () => {
+  it('returns a non-empty string', () => {
+    expect(codeChallengeFromVerifier('testverifier')).toBeTruthy();
+  });
+
+  it('returns a base64url string (no +, /, = characters)', () => {
+    const challenge = codeChallengeFromVerifier('verifier123');
+    expect(challenge).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('matches the SHA-256 base64url of the input', () => {
+    const verifier = 'myverifier';
+    const expected = createHash('sha256').update(verifier).digest('base64url');
+    expect(codeChallengeFromVerifier(verifier)).toBe(expected);
+  });
+
+  it('produces a SHA-256 digest (43 chars in base64url)', () => {
+    // SHA-256 = 32 bytes → 43 base64url characters
+    expect(codeChallengeFromVerifier('anything')).toHaveLength(43);
+  });
+
+  it('is deterministic for the same input', () => {
+    expect(codeChallengeFromVerifier('hello')).toBe(codeChallengeFromVerifier('hello'));
+  });
+
+  it('produces different challenges for different verifiers', () => {
+    expect(codeChallengeFromVerifier('aaa')).not.toBe(codeChallengeFromVerifier('bbb'));
+  });
+
+  it('handles an empty string input', () => {
+    const expected = createHash('sha256').update('').digest('base64url');
+    expect(codeChallengeFromVerifier('')).toBe(expected);
+  });
+
+  it('correctly challenges a real code_verifier generated by generateCodeVerifier()', () => {
+    const verifier = generateCodeVerifier();
+    const expected = createHash('sha256').update(verifier).digest('base64url');
+    expect(codeChallengeFromVerifier(verifier)).toBe(expected);
+  });
+
+  it('can be used in PKCE: challenge !== verifier', () => {
+    const verifier = generateCodeVerifier();
+    expect(codeChallengeFromVerifier(verifier)).not.toBe(verifier);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// codeVerifierCookieName()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('codeVerifierCookieName()', () => {
+  it('returns oauth_pkce_youtube for youtube', () => {
+    expect(codeVerifierCookieName('youtube')).toBe('oauth_pkce_youtube');
+  });
+
+  it('returns oauth_pkce_canva for canva', () => {
+    expect(codeVerifierCookieName('canva')).toBe('oauth_pkce_canva');
+  });
+
+  it('returns oauth_pkce_tiktok for tiktok', () => {
+    expect(codeVerifierCookieName('tiktok')).toBe('oauth_pkce_tiktok');
+  });
+
+  it('returns oauth_pkce_facebook for facebook', () => {
+    expect(codeVerifierCookieName('facebook')).toBe('oauth_pkce_facebook');
+  });
+
+  it('prefixes any string with oauth_pkce_', () => {
+    expect(codeVerifierCookieName('custom')).toBe('oauth_pkce_custom');
+  });
+
+  it('produces a different cookie name than stateCookieName for the same platform', () => {
+    expect(codeVerifierCookieName('youtube')).not.toBe(stateCookieName('youtube'));
+  });
+});
