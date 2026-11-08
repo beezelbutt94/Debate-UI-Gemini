@@ -1,10 +1,10 @@
-import type { OAuthPlatform, OAuthProvider } from './types';
-import { youtubeProvider } from './youtube';
-import { tiktokProvider } from './tiktok';
-import { facebookProvider } from './facebook';
-import { canvaProvider } from './canva';
+import type { OAuthPlatform, OAuthProvider } from './types.ts';
+import { youtubeProvider } from './youtube.ts';
+import { tiktokProvider } from './tiktok.ts';
+import { facebookProvider } from './facebook.ts';
+import { canvaProvider } from './canva.ts';
 
-export * from './types';
+export * from './types.ts';
 
 const providers: Record<OAuthPlatform, OAuthProvider> = {
   youtube: youtubeProvider,
