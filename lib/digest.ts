@@ -64,7 +64,7 @@ export function digestScript(script: ScriptRow): string {
   const weakScene = script.storyboard.scenes[0];
   return (
     `Script "${script.title}" (${date}): hook "${script.storyboard.spoken_hook}"; ` +
-    `first scene retention loop: "${weakScene?.retention_loop_note ?? '(none)'}"; ` +
+    `first scene retention loop: "${weakScene?.retention_loop_note || '(none)'}"; ` +
     `${script.storyboard.scenes.length} scenes total.`
   );
 }
