@@ -1,27 +1,12 @@
 import { headers } from 'next/headers';
 import { Webhook } from 'svix';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-
-interface ClerkEmailAddress {
-  id: string;
-  email_address: string;
-}
-
-interface ClerkUserData {
-  id: string;
-  email_addresses?: ClerkEmailAddress[];
-  primary_email_address_id?: string | null;
-}
+import { getPrimaryEmail } from '@/lib/clerk-utils';
+import type { ClerkUserData } from '@/lib/clerk-utils';
 
 interface ClerkWebhookEvent {
   type: string;
   data: ClerkUserData;
-}
-
-function getPrimaryEmail(data: ClerkUserData): string | null {
-  const addresses = data.email_addresses ?? [];
-  const primary = addresses.find((address) => address.id === data.primary_email_address_id);
-  return primary?.email_address ?? addresses[0]?.email_address ?? null;
 }
 
 /**
