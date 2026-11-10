@@ -100,6 +100,7 @@ workflows:
       - lint-and-typecheck:
           requires:
             - install
+      # Avoid the expensive build when lint or type checking has already failed.
       - build:
           requires:
-            - install
+            - lint-and-typecheck
