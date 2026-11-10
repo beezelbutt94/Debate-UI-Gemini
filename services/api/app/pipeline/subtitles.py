@@ -4,6 +4,7 @@ generation, optimized for 9:16 vertical video.
 Requires the optional `faster-whisper` dependency; see
 `services/api/requirements-ml.txt`.
 """
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List
 
 
@@ -33,10 +34,16 @@ class KineticSubtitleGenerator:
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        centis = int(round((seconds - int(seconds)) * 100))
+        # Use Decimal to avoid floating-point precision errors when rounding centiseconds
+        total_centis = int(
+            (Decimal(str(seconds)) * 100).to_integral_value(rounding=ROUND_HALF_UP)
+        )
+        centis = total_centis % 100
+        total_secs = total_centis // 100
+        secs = total_secs % 60
+        total_mins = total_secs // 60
+        minutes = total_mins % 60
+        hours = total_mins // 60
         return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
     def build_ass_subtitles(
