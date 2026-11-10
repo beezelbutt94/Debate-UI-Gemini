@@ -60,8 +60,7 @@ _models_stub = types.ModuleType('app.core.models')
 _models_stub.User = _FakeUser  # type: ignore[attr-defined]
 _models_stub.WorkspaceRole = WorkspaceRole  # type: ignore[attr-defined]
 sys.modules['app.core.models'] = _models_stub
-sys.modules['app'] = types.ModuleType('app')
-sys.modules['app.core'] = types.ModuleType('app.core')
+# Keep app and app.core as real packages so app.core.auth remains importable.
 
 from app.core.auth import _ROLE_RANK, RoleChecker  # noqa: E402
 
