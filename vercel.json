@@ -5,5 +5,10 @@
       "path": "/api/cron/publish",
       "schedule": "*/15 * * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "chunk/full-unit-test-coverage-2": false
+    }
+  }
 }
