@@ -33,7 +33,7 @@ def extract_json_block(raw: str) -> str:
     text = raw.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
-        if text.startswith("json"):
+        if text.lower().startswith("json"):
             text = text[4:]
         text = text.strip()
     return text
