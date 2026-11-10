@@ -25,7 +25,7 @@ function makeAdminRpc(data: unknown, error: unknown = null) {
   const rpcFn = vi.fn().mockReturnValue({
     maybeSingle: vi.fn().mockResolvedValue({ data, error }),
   });
-  mockCreateAdmin.mockReturnValue({ rpc: rpcFn } as ReturnType<typeof createSupabaseAdminClient>);
+  mockCreateAdmin.mockReturnValue({ rpc: rpcFn } as unknown as ReturnType<typeof createSupabaseAdminClient>);
   return rpcFn;
 }
 
@@ -115,7 +115,7 @@ describe('getValidAccessToken', () => {
       })})
       .mockResolvedValueOnce({ error: null }); // store_platform_connection
 
-    mockCreateAdmin.mockReturnValue({ rpc: rpcChain } as ReturnType<typeof createSupabaseAdminClient>);
+    mockCreateAdmin.mockReturnValue({ rpc: rpcChain } as unknown as ReturnType<typeof createSupabaseAdminClient>);
 
     mockGetOAuthProvider.mockReturnValue({
       requiresPkce: false,
@@ -147,7 +147,7 @@ describe('getValidAccessToken', () => {
       })})
       .mockResolvedValueOnce({ error: null });
 
-    mockCreateAdmin.mockReturnValue({ rpc: rpcChain } as ReturnType<typeof createSupabaseAdminClient>);
+    mockCreateAdmin.mockReturnValue({ rpc: rpcChain } as unknown as ReturnType<typeof createSupabaseAdminClient>);
 
     mockGetOAuthProvider.mockReturnValue({
       requiresPkce: false,
