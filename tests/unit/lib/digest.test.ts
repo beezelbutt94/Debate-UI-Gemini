@@ -10,7 +10,7 @@ import type {
   CompetitorGapAnalysis,
 } from '@/lib/types';
 
-const BASE_REPORT = {
+const BASE_REPORT: Omit<AuditReportRow, 'source_type' | 'analysis'> = {
   id: 'rpt-1',
   user_id: 'usr-1',
   creator_profile_id: null,
@@ -19,7 +19,7 @@ const BASE_REPORT = {
   viral_score: 72,
   timeline_recommendations: [],
   created_at: '2024-06-15T12:00:00.000Z',
-} as const;
+};
 
 describe('digestReport', () => {
   it('formats a url (ViralGapAnalysis) report', () => {
