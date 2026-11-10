@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { digestReport, digestScript } from '@/lib/digest';
-import type { AuditReportRow, ScriptRow } from '@/lib/types';
+import type { AuditReportRow, ScriptRow, GrowthBlueprint, CompetitorGapAnalysis } from '@/lib/types';
 
 const BASE_REPORT: Pick<AuditReportRow, 'id' | 'user_id' | 'creator_profile_id' | 'source_url' | 'platform' | 'viral_score' | 'timeline_recommendations' | 'created_at'> = {
   id: 'r1',
@@ -58,7 +58,7 @@ describe('digestReport – source_type: url (ViralGapAnalysis)', () => {
 });
 
 describe('digestReport – source_type: account (GrowthBlueprint)', () => {
-  const report: AuditReportRow = {
+  const report: AuditReportRow<GrowthBlueprint> = {
     ...BASE_REPORT,
     source_type: 'account',
     analysis: {
@@ -94,9 +94,9 @@ describe('digestReport – source_type: account (GrowthBlueprint)', () => {
     const noBlindspots: AuditReportRow = {
       ...report,
       analysis: {
-        ...(report.analysis as object),
+        ...report.analysis,
         posting_blindspots: [],
-      } as AuditReportRow['analysis'],
+      },
     };
     expect(digestReport(noBlindspots)).toContain('none noted');
   });
@@ -171,7 +171,7 @@ describe('digestReport – source_type: discovery (SiteDiscoveryResult)', () => 
 });
 
 describe('digestReport – source_type: competitors (CompetitorGapAnalysis)', () => {
-  const report: AuditReportRow = {
+  const report: AuditReportRow<CompetitorGapAnalysis> = {
     ...BASE_REPORT,
     source_type: 'competitors',
     analysis: {
@@ -203,9 +203,9 @@ describe('digestReport – source_type: competitors (CompetitorGapAnalysis)', ()
     const noMissing: AuditReportRow = {
       ...report,
       analysis: {
-        ...(report.analysis as object),
+        ...report.analysis,
         missing_topics: [],
-      } as AuditReportRow['analysis'],
+      },
     };
     expect(digestReport(noMissing)).toContain('none noted');
   });
@@ -214,9 +214,9 @@ describe('digestReport – source_type: competitors (CompetitorGapAnalysis)', ()
     const noClusters: AuditReportRow = {
       ...report,
       analysis: {
-        ...(report.analysis as object),
+        ...report.analysis,
         untapped_keyword_clusters: [],
-      } as AuditReportRow['analysis'],
+      },
     };
     expect(digestReport(noClusters)).toContain('none noted');
   });
