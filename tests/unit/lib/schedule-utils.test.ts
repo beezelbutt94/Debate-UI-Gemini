@@ -21,10 +21,10 @@ describe('nextOccurrence()', () => {
     vi.useRealTimers();
   });
 
-  // Helper: pin "now" to a specific UTC moment, run the function, unpin.
+  // Helper: pin "now" to a specific local wall-clock moment, run the function, unpin.
   function pinNow(isoString: string, fn: () => void) {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(isoString));
+    vi.setSystemTime(new Date(isoString.replace(/Z$/, "")));
     fn();
     vi.useRealTimers();
   }
@@ -59,22 +59,22 @@ describe('nextOccurrence()', () => {
   });
 
   it('skips today if the time has already passed', () => {
-    // Pin to Monday 2026-11-09 at 15:00 UTC
+    // Pin to Monday 2026-11-09 at 15:00 local time
     pinNow('2026-11-09T15:00:00.000Z', () => {
       // Monday at 10:00 has already passed today → next Monday
       const result = nextOccurrence('monday', '10:00');
       const dayDiff = Math.round(
-        (result.getTime() - new Date('2026-11-09T15:00:00.000Z').getTime()) / (1000 * 60 * 60 * 24)
+        (result.getTime() - new Date('2026-11-09T15:00:00.000').getTime()) / (1000 * 60 * 60 * 24)
       );
       expect(dayDiff).toBeGreaterThan(0);
     });
   });
 
   it('returns today if the time has not yet passed', () => {
-    // Pin to Monday 2026-11-09 at 08:00 UTC
+    // Pin to Monday 2026-11-09 at 08:00 local time
     pinNow('2026-11-09T08:00:00.000Z', () => {
       const result = nextOccurrence('monday', '10:00');
-      const now = new Date('2026-11-09T08:00:00.000Z');
+      const now = new Date('2026-11-09T08:00:00.000');
       const diffHours = (result.getTime() - now.getTime()) / (1000 * 60 * 60);
       // Should be ~2 hours ahead, not ~170 hours (a full week) ahead
       expect(diffHours).toBeLessThan(24);
@@ -123,12 +123,12 @@ describe('nextOccurrence()', () => {
   });
 
   it('returns valid dates across two consecutive days with the same weekday', () => {
-    // Pinned to Saturday 2026-11-07 at 20:00 UTC
+    // Pinned to Saturday 2026-11-07 at 20:00 local time
     pinNow('2026-11-07T20:00:00.000Z', () => {
       const result = nextOccurrence('saturday', '10:00');
       // Saturday at 10:00 has passed → next Saturday (7 days later)
       expect(result.getDay()).toBe(6);
-      expect(result.getTime()).toBeGreaterThan(new Date('2026-11-07T20:00:00.000Z').getTime());
+      expect(result.getTime()).toBeGreaterThan(new Date('2026-11-07T20:00:00.000').getTime());
     });
   });
 });

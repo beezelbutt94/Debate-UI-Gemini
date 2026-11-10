@@ -146,7 +146,7 @@ describe('computeAvgDaysBetween()', () => {
   it('handles 15 dates (playlist max) without throwing', () => {
     const dates = Array.from({ length: 15 }, (_, i) => {
       const d = new Date('2024-01-01T00:00:00Z');
-      d.setDate(d.getDate() + i * 7);
+      d.setUTCDate(d.getUTCDate() + i * 7);
       return d.toISOString();
     });
     const result = computeAvgDaysBetween(dates);
