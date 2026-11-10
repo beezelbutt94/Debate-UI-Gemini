@@ -1,8 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { searchTopics, TavilyRateLimitError, type TavilySearchResult } from '@/lib/tavily';
+import { searchTopics, TavilyRateLimitError } from '@/lib/tavily';
 import { generateSiteDiscovery } from '@/lib/anthropic';
+import { domainOf, dedupeByDomain } from '@/lib/discover-utils';
 import type { AuditReportRow, SiteDiscoveryResult } from '@/lib/types';
 
 const MAX_QUERY_LENGTH = 300;
@@ -11,28 +12,6 @@ const SEARCH_MAX_RESULTS = 20;
 
 interface DiscoverRequestBody {
   query?: string;
-}
-
-function domainOf(url: string): string | null {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-}
-
-/** Keeps the highest-scoring result per domain so 10 slots aren't wasted on one site. */
-function dedupeByDomain(results: TavilySearchResult[]): (TavilySearchResult & { domain: string })[] {
-  const byDomain = new Map<string, TavilySearchResult & { domain: string }>();
-  for (const r of results) {
-    const domain = domainOf(r.url);
-    if (!domain) continue;
-    const existing = byDomain.get(domain);
-    if (!existing || r.score > existing.score) {
-      byDomain.set(domain, { ...r, domain });
-    }
-  }
-  return [...byDomain.values()].sort((a, b) => b.score - a.score);
 }
 
 export async function POST(request: Request) {
