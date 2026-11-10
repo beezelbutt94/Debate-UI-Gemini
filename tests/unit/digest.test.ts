@@ -26,7 +26,7 @@ const BASE = {
 function makeReport<T>(
   source_type: AuditReportRow['source_type'],
   analysis: T,
-  override: Partial<typeof BASE> = {}
+  override: Partial<Omit<AuditReportRow, 'source_type' | 'analysis'>> = {}
 ): AuditReportRow<T> {
   return { ...BASE, ...override, source_type, analysis } as AuditReportRow<T>;
 }
