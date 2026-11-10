@@ -15,14 +15,13 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:postgres@localhost:5432/viralvision",
 )
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1800,
-    pool_pre_ping=True,
+_pool_kwargs = (
+    dict(pool_size=20, max_overflow=10, pool_timeout=30, pool_recycle=1800, pool_pre_ping=True)
+    if not DATABASE_URL.startswith("sqlite")
+    else {}
 )
+
+engine = create_engine(DATABASE_URL, **_pool_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
