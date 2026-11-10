@@ -5,5 +5,11 @@
       "path": "/api/cron/publish",
       "schedule": "*/15 * * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "chunk/*test*": false,
+      "finops/stop-duplicate-test-previews-20261110": false
+    }
+  }
 }
